@@ -95,18 +95,25 @@ class SetActiveCompany
 
         if ($company) {
 
-            app(CompanyContext::class)->set($company);
+        app(CompanyContext::class)->set($company);
 
-            app(PermissionRegistrar::class)
-                ->setPermissionsTeamId($company->id);
+        app(PermissionRegistrar::class)
+            ->setPermissionsTeamId($company->id);
 
-        } else {
+        // Refresh the authenticated user after setting the Spatie team
+        $user = $user->fresh();
 
-            app(CompanyContext::class)->clear();
+        $request->setUserResolver(
+            fn () => $user
+        );
 
-            app(PermissionRegistrar::class)
-                ->setPermissionsTeamId(null);
-        }
+    } else {
+
+        app(CompanyContext::class)->clear();
+
+        app(PermissionRegistrar::class)
+            ->setPermissionsTeamId(null);
+    }
 
         return $next($request);
     }

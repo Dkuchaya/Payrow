@@ -6,6 +6,13 @@ import CompanyLogo from '@/Components/CompanyLogo.vue'
 import CompanySwitcher from '@/Components/CompanySwitcher.vue'
 import FlashMessage from '@/Components/FlashMessage.vue'
 
+interface AuthUser {
+    id: number
+    name: string
+    email: string
+    is_super_admin: boolean
+}
+
 const page = usePage()
 
 const sidebarOpen = ref(false)
@@ -15,8 +22,8 @@ const activeCompany = computed(() => {
     return page.props.company?.active ?? null
 })
 
-const user = computed(() => {
-    return page.props.auth?.user ?? null
+const user = computed<AuthUser | null>(() => {
+    return (page.props.auth?.user as AuthUser | null) ?? null
 })
 
 const userInitial = computed(() => {
@@ -43,16 +50,75 @@ onBeforeUnmount(() => {
     document.removeEventListener('click', closeProfileMenu)
 })
 
-const navigation = [
-    {
-        name: 'Dashboard',
-        href: '/dashboard',
-        icon: '⌂',
-    },
+const isSuperAdmin = computed(
+    () => page.props.auth?.user?.is_super_admin === true
+)
+
+const navigation = computed(() => {
+    const items = [
+        {
+            name: 'Dashboard',
+            href: '/dashboard',
+            icon: '⌂',
+        },
+    ]
+
+    if (isSuperAdmin.value) {
+        items.push(
+            {
+                name: 'Companies',
+                href: '/companies',
+                icon: '🏢',
+            },
+            {
+                name: 'Users',
+                href: '/users',
+                icon: '👤',
+            },
+            {
+                name: 'Subscription Plans',
+                href: '/subscription-plans',
+                icon: '💳',
+            },
+            {
+                name: 'Company Subscriptions',
+                href: '/company-subscriptions',
+                icon: '🔄',
+            },
+            {
+                name: 'Accounting History',
+                href: '/accounting/history',
+                icon: '📊',
+            },
+        )
+    } else {
+        items.push({
+            name: 'Users',
+            href: '/users',
+            icon: '👤',
+        })
+    }
+
+    items.push(
     {
         name: 'Employees',
         href: '/employees',
         icon: '👥',
+    },
+    {
+        name: 'Departments',
+        href: '/departments',
+        icon: '🏢',
+    },
+    {
+        name: 'Positions',
+        href: '/positions',
+        icon: '💼',
+    },
+    {
+        name: 'Employee Separations',
+        href: '/employee-separations',
+        icon: '🔄',
     },
     {
         name: 'Leave',
@@ -74,12 +140,16 @@ const navigation = [
         href: '/documents',
         icon: '📄',
     },
-    {
-        name: 'Reports',
-        href: '/reports',
-        icon: '📊',
-    },
-]
+   
+        {
+            name: 'Reports',
+            href: '/reports',
+            icon: '📊',
+        },
+    )
+
+    return items
+})
 </script>
 
 <template>

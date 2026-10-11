@@ -30,17 +30,41 @@ class CompanyMemberService
     }
 
     public function updateRole(
-        User $user,
-        Company $company,
-        string $role
-    ): void {
-        DB::transaction(function () use ($user, $company, $role) {
+    User $user,
+    Company $company,
+    string $role
+): void {
+    DB::transaction(function () use ($user, $company, $role) {
 
-            $this->setTeam($company);
+        // User must belong to this company
+        $membershipExists = $user->companies()
+            ->where('companies.id', $company->id)
+            ->wherePivot('is_active', true)
+            ->exists();
 
-            $user->syncRoles([$role]);
-        });
-    }
+        if (! $membershipExists) {
+            throw new \RuntimeException(
+                'User does not belong to this company.'
+            );
+        }
+
+        // Set the company/team first
+        $this->setTeam($company);
+
+        // IMPORTANT:
+        // Clear cached Spatie relationships after changing teams.
+        $user->unsetRelation('roles');
+        $user->unsetRelation('permissions');
+
+        // Assign the role for THIS company/team only
+        $user->syncRoles([$role]);
+
+        // Clear again so subsequent authorization checks use
+        // the role/permission data for the current team.
+        $user->unsetRelation('roles');
+        $user->unsetRelation('permissions');
+    });
+}
 
     public function activate(
         User $user,

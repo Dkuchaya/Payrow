@@ -16,6 +16,11 @@ interface Role {
     id: number
     name: string
 }
+interface CompanyAccess {
+    id: number
+    name: string
+    role: string | null
+}
 
 interface User {
     id: number
@@ -23,8 +28,7 @@ interface User {
     email: string
     is_active: boolean
     is_super_admin: boolean
-    companies: Company[]
-    roles: Role[]
+    company_access?: CompanyAccess[]
 }
 
 interface PaginationLink {
@@ -112,7 +116,11 @@ const toggleStatus = (user: User) => {
     )
 }
 
-const roleLabel = (name: string) => {
+const roleLabel = (name: string | null) => {
+    if (!name) {
+        return 'No Role'
+    }
+
     return name
         .replaceAll('_', ' ')
         .replace(/\b\w/g, char => char.toUpperCase())
@@ -333,44 +341,50 @@ const flash = computed(() => {
                             </td>
 
                             <!-- Companies -->
-                            <td class="px-6 py-4">
+                                <td class="px-6 py-4">
+                                    <div class="space-y-1">
+                                        <span
+                                            v-for="access in (user.company_access ?? [])"
+                                            :key="access.id"
+                                            class="block text-sm text-gray-700"
+                                        >
+                                            {{ access.name }}
+                                        </span>
 
-                                <div class="space-y-1">
-                                    <span
-                                        v-for="company in user.companies"
-                                        :key="company.id"
-                                        class="block text-sm text-gray-700"
-                                    >
-                                        {{ company.name }}
-                                    </span>
-
-                                    <span
-                                        v-if="!user.companies.length"
-                                        class="text-sm text-gray-400"
-                                    >
-                                        No company
-                                    </span>
-                                </div>
-
-                            </td>
+                                        <span
+                                            v-if="!(user.company_access ?? []).length"
+                                            class="text-sm text-gray-400"
+                                        >
+                                            No company
+                                        </span>
+                                    </div>
+                                </td>
 
                             <!-- Roles -->
                             <td class="px-6 py-4">
+                                <div class="space-y-1">
+                                    <div
+                                        v-for="access in (user.company_access ?? [])"
+                                        :key="access.id"
+                                        class="text-sm"
+                                    >
+                                        <span class="font-medium text-gray-900">
+                                            {{ access.name }}
+                                        </span>
 
-                                <div class="flex flex-wrap gap-1">
+                                        <span class="text-gray-500">
+                                            — {{ roleLabel(access.role) }}
+                                        </span>
+                                    </div>
 
                                     <span
-                                        v-for="item in user.roles"
-                                        :key="item.id"
-                                        class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700"
+                                        v-if="!(user.company_access ?? []).length"
+                                        class="text-sm text-gray-400"
                                     >
-                                        {{ roleLabel(item.name) }}
+                                        No company access
                                     </span>
-
                                 </div>
-
                             </td>
-
                             <!-- Status -->
                             <td class="whitespace-nowrap px-6 py-4">
 

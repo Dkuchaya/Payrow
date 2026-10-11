@@ -11,131 +11,213 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Spatie\Permission\PermissionRegistrar;
+use Illuminate\Support\Collection;
 
 class UserController extends Controller
 {
     /**
      * Display users for the current company.
      */
-    public function index(Request $request, CompanyContext $companyContext)
-    {
-        $user = $request->user();
+   public function index(
+    Request $request,
+    CompanyContext $companyContext
+) {
+    $user = $request->user();
 
-        if (!$user->is_super_admin) {
-            $company = $companyContext->get();
+    /*
+    |--------------------------------------------------------------------------
+    | Access check
+    |--------------------------------------------------------------------------
+    */
 
-            abort_unless(
-                $company,
-                403,
-                'No active company selected.'
-            );
+    if (! $user->is_super_admin) {
+        $company = $companyContext->get();
 
-            app(PermissionRegistrar::class)
-                ->setPermissionsTeamId($company->id);
+        abort_unless(
+            $company,
+            403,
+            'No active company selected.'
+        );
 
-            abort_unless(
-                $user->can('users.view'),
-                403,
-                'You do not have permission to view users.'
-            );
-        }
-
-        $query = User::query()
-            ->with([
-                'companies:id,name',
-                'roles:id,name',
-            ]);
-
-        /*
-        |--------------------------------------------------------------------------
-        | Super Admin
-        |--------------------------------------------------------------------------
-        */
-
-        if (!$user->is_super_admin) {
-            $company = $companyContext->get();
-
-            abort_unless(
-                $company,
-                403,
-                'No active company selected.'
-            );
-
-            $query->whereHas('companies', function ($q) use ($company) {
-                $q->where('companies.id', $company->id)
-                    ->where('company_user.is_active', true)
-                    ->where('companies.is_active', true);
-            });
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Search
-        |--------------------------------------------------------------------------
-        */
-
-        if ($request->filled('search')) {
-            $search = $request->string('search')->trim();
-
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%");
-            });
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Status filter
-        |--------------------------------------------------------------------------
-        */
-
-        if ($request->filled('status')) {
-            $query->where(
-                'is_active',
-                $request->string('status')->toString() === 'active'
-            );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Role filter
-        |--------------------------------------------------------------------------
-        */
-
-        if ($request->filled('role')) {
-            $query->whereHas('roles', function ($q) use ($request) {
-                $q->where(
-                    'name',
-                    $request->string('role')->toString()
-                );
-            });
-        }
-
-        $users = $query
-            ->latest()
-            ->paginate(15)
-            ->withQueryString();
-
-        return Inertia::render('Users/Index', [
-            'users' => $users,
-            'filters' => [
-                'search' => $request->search,
-                'status' => $request->status,
-                'role' => $request->role,
-            ],
-            'roles' => [
-                'company_admin',
-                'hr_manager',
-                'hr_officer',
-                'payroll_manager',
-                'accountant',
-                'supervisor',
-                'employee',
-                'auditor',
-            ],
-        ]);
+        abort_unless(
+            $user->can('users.view'),
+            403,
+            'You do not have permission to view users.'
+        );
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Base query
+    |--------------------------------------------------------------------------
+    */
+
+    $query = User::query()
+        ->with([
+            'companies:id,name',
+        ]);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Company filtering
+    |--------------------------------------------------------------------------
+    */
+
+    if (! $user->is_super_admin) {
+        $company = $companyContext->get();
+
+        $query->whereHas('companies', function ($q) use ($company) {
+            $q->where('companies.id', $company->id)
+                ->where('company_user.is_active', true)
+                ->where('companies.is_active', true);
+        });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Search
+    |--------------------------------------------------------------------------
+    */
+
+    if ($request->filled('search')) {
+        $search = $request->string('search')->trim();
+
+        $query->where(function ($q) use ($search) {
+            $q->where('name', 'like', "%{$search}%")
+                ->orWhere('email', 'like', "%{$search}%");
+        });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Status filter
+    |--------------------------------------------------------------------------
+    */
+
+    if ($request->filled('status')) {
+        $query->where(
+            'is_active',
+            $request->string('status')->toString() === 'active'
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Role filter
+    |--------------------------------------------------------------------------
+    */
+
+    if ($request->filled('role')) {
+        $role = $request->string('role')->toString();
+
+        $query->whereHas('roles', function ($q) use ($role, $user, $companyContext) {
+            $q->where('roles.name', $role);
+
+            /*
+            | For normal users, make sure the role belongs
+            | to the currently active company/team.
+            */
+            if (! $user->is_super_admin) {
+                $company = $companyContext->get();
+
+                $q->where('roles.team_id', $company->id);
+            }
+        });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Pagination
+    |--------------------------------------------------------------------------
+    */
+
+    $users = $query
+        ->latest()
+        ->paginate(15)
+        ->withQueryString();
+
+    /*
+    |--------------------------------------------------------------------------
+    | Build company + role information
+    |--------------------------------------------------------------------------
+    */
+
+    $users->getCollection()->transform(function ($user) {
+
+        $companyAccess = $user->companies
+            ->map(function ($company) use ($user) {
+
+                $role = DB::table('model_has_roles')
+                    ->join('roles', function ($join) {
+                        $join->on(
+                            'roles.id',
+                            '=',
+                            'model_has_roles.role_id'
+                        )->on(
+                            'roles.team_id',
+                            '=',
+                            'model_has_roles.team_id'
+                        );
+                    })
+                    ->where(
+                        'model_has_roles.model_type',
+                        User::class
+                    )
+                    ->where(
+                        'model_has_roles.model_id',
+                        $user->id
+                    )
+                    ->where(
+                        'model_has_roles.team_id',
+                        $company->id
+                    )
+                    ->value('roles.name');
+
+                return [
+                    'id' => $company->id,
+                    'name' => $company->name,
+                    'role' => $role,
+                ];
+            })
+            ->values();
+
+        return [
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'is_active' => $user->is_active,
+            'is_super_admin' => $user->is_super_admin,
+            'company_access' => $companyAccess,
+        ];
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Response
+    |--------------------------------------------------------------------------
+    */
+
+    return Inertia::render('Users/Index', [
+        'users' => $users,
+
+        'filters' => [
+            'search' => $request->search,
+            'status' => $request->status,
+            'role' => $request->role,
+        ],
+
+        'roles' => [
+            'company_admin',
+            'hr_manager',
+            'hr_officer',
+            'payroll_manager',
+            'accountant',
+            'supervisor',
+            'employee',
+            'auditor',
+        ],
+    ]);
+}
     /**
      * Show create user form.
      */
@@ -398,99 +480,167 @@ class UserController extends Controller
     /**
      * Display a user.
      */
-    public function show(
-        Request $request,
-        User $user,
-        CompanyContext $companyContext
-    ) {
-        $this->authorizeUserAccess(
-            $request,
-            $user,
-            $companyContext,
-            'users.view'
-        );
+   public function show(
+    Request $request,
+    User $user,
+    CompanyContext $companyContext
+) {
+    $this->authorizeUserAccess(
+        $request,
+        $user,
+        $companyContext,
+        'users.view'
+    );
 
-        $user->load([
-            'companies:id,name',
-            'settings',
-            'roles:id,name',
-        ]);
+    $user->load([
+        'companies:id,name',
+        'settings',
+    ]);
 
-        return Inertia::render('Users/Show', [
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'is_active' => $user->is_active,
-                'is_super_admin' => $user->is_super_admin,
-                'phone' => $user->settings?->phone,
-                'companies' => $user->companies
-                    ->map(fn ($company) => [
-                        'id' => $company->id,
-                        'name' => $company->name,
-                    ])
-                    ->values(),
-                'roles' => $user->roles
-                    ->pluck('name')
-                    ->values(),
-            ],
-        ]);
-    }
+    $companyAccess = $user->companies
+        ->map(function ($company) use ($user) {
 
+            $role = DB::table('model_has_roles')
+                ->join('roles', function ($join) {
+                    $join->on(
+                        'roles.id',
+                        '=',
+                        'model_has_roles.role_id'
+                    )->on(
+                        'roles.team_id',
+                        '=',
+                        'model_has_roles.team_id'
+                    );
+                })
+                ->where(
+                    'model_has_roles.model_type',
+                    User::class
+                )
+                ->where(
+                    'model_has_roles.model_id',
+                    $user->id
+                )
+                ->where(
+                    'model_has_roles.team_id',
+                    $company->id
+                )
+                ->value('roles.name');
+
+            return [
+                'id' => $company->id,
+                'name' => $company->name,
+                'role' => $role,
+            ];
+        })
+        ->values();
+
+    return Inertia::render('Users/Show', [
+        'user' => [
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'is_active' => $user->is_active,
+            'is_super_admin' => $user->is_super_admin,
+            'phone' => $user->settings?->phone,
+
+            'company_access' => $companyAccess,
+        ],
+    ]);
+}
     /**
      * Show edit user form.
      */
     public function edit(
-        Request $request,
-        User $user,
-        CompanyContext $companyContext
-    ) {
-        $this->authorizeUserAccess(
-            $request,
-            $user,
-            $companyContext,
-            'users.update'
-        );
+    Request $request,
+    User $user,
+    CompanyContext $companyContext
+) {
+    $this->authorizeUserAccess(
+        $request,
+        $user,
+        $companyContext,
+        'users.update'
+    );
 
-        $user->load([
-            'companies:id,name',
-            'settings',
-            'roles:id,name',
-        ]);
+    $user->load([
+        'companies:id,name',
+        'settings',
+    ]);
 
-        return Inertia::render('Users/Edit', [
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'is_active' => $user->is_active,
-                'phone' => $user->settings?->phone,
-                'company_id' => $user->companies->first()?->id,
-                'role' => $user->roles->first()?->name,
-            ],
-            'companies' => $request->user()->is_super_admin
-                ? Company::query()
-                    ->where('is_active', true)
-                    ->orderBy('name')
-                    ->get(['id', 'name'])
-                : collect([
-                    [
-                        'id' => $companyContext->id(),
-                        'name' => $companyContext->get()?->name,
-                    ],
-                ]),
-            'roles' => [
-                'company_admin',
-                'hr_manager',
-                'hr_officer',
-                'payroll_manager',
-                'accountant',
-                'supervisor',
-                'employee',
-                'auditor',
+    /*
+    |--------------------------------------------------------------------------
+    | Get the user's role for each company
+    |--------------------------------------------------------------------------
+    */
+
+    $companyAccess = $user->companies
+        ->map(function ($company) use ($user) {
+
+            $role = DB::table('model_has_roles')
+                ->join('roles', function ($join) {
+                    $join->on('roles.id', '=', 'model_has_roles.role_id')
+                        ->on('roles.team_id', '=', 'model_has_roles.team_id');
+                })
+                ->where('model_has_roles.model_type', User::class)
+                ->where('model_has_roles.model_id', $user->id)
+                ->where('model_has_roles.team_id', $company->id)
+                ->value('roles.name');
+
+            return [
+                'id' => $company->id,
+                'name' => $company->name,
+                'role' => $role,
+            ];
+        })
+        ->values();
+
+    /*
+    |--------------------------------------------------------------------------
+    | Available companies
+    |--------------------------------------------------------------------------
+    */
+
+    if ($request->user()->is_super_admin) {
+        $companies = Company::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+    } else {
+        $companies = collect([
+            [
+                'id' => $companyContext->id(),
+                'name' => $companyContext->get()?->name,
             ],
         ]);
     }
+
+    return Inertia::render('Users/Edit', [
+        'user' => [
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'is_active' => $user->is_active,
+            'is_super_admin' => $user->is_super_admin,
+            'phone' => $user->settings?->phone,
+
+            // NEW: company-specific roles
+            'company_access' => $companyAccess,
+        ],
+
+        'companies' => $companies,
+
+        'roles' => [
+            'company_admin',
+            'hr_manager',
+            'hr_officer',
+            'payroll_manager',
+            'accountant',
+            'supervisor',
+            'employee',
+            'auditor',
+        ],
+    ]);
+}
 
     /**
      * Update user.
@@ -508,13 +658,6 @@ class UserController extends Controller
     );
 
     $currentUser = $request->user();
-    $company = $companyContext->get();
-
-    abort_unless(
-        $company,
-        403,
-        'No active company selected.'
-    );
 
     $validated = $request->validate([
         'name' => [
@@ -541,7 +684,19 @@ class UserController extends Controller
             'boolean',
         ],
 
-        'role' => [
+        'company_access' => [
+            'required',
+            'array',
+            'min:1',
+        ],
+
+        'company_access.*.company_id' => [
+            'required',
+            'integer',
+            'exists:companies,id',
+        ],
+
+        'company_access.*.role' => [
             'required',
             'string',
             Rule::in([
@@ -557,15 +712,72 @@ class UserController extends Controller
         ],
     ]);
 
+    /*
+    |--------------------------------------------------------------------------
+    | Normal users may ONLY modify the active company
+    |--------------------------------------------------------------------------
+    */
+
+    if (! $currentUser->is_super_admin) {
+        $activeCompany = $companyContext->get();
+
+        abort_unless(
+            $activeCompany,
+            403,
+            'No active company selected.'
+        );
+
+        foreach ($validated['company_access'] as $access) {
+            abort_unless(
+                (int) $access['company_id'] === (int) $activeCompany->id,
+                403,
+                'You can only manage access for the active company.'
+            );
+        }
+
+        abort_unless(
+            $user->companies()
+                ->where('companies.id', $activeCompany->id)
+                ->where('companies.is_active', true)
+                ->wherePivot('is_active', true)
+                ->exists(),
+            403,
+            'This user does not belong to the active company.'
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Super Admin can manage all company memberships
+    |--------------------------------------------------------------------------
+    */
+
+    $companyIds = collect($validated['company_access'])
+        ->pluck('company_id')
+        ->map(fn ($id) => (int) $id)
+        ->unique()
+        ->values();
+
+    $companies = Company::query()
+        ->whereIn('id', $companyIds)
+        ->where('is_active', true)
+        ->get()
+        ->keyBy('id');
+
+    abort_unless(
+        $companies->count() === $companyIds->count(),
+        422,
+        'One or more selected companies are invalid.'
+    );
+
     DB::transaction(function () use (
         $user,
         $validated,
-        $company
+        $companies
     ) {
-
         /*
         |--------------------------------------------------------------------------
-        | Update User Profile
+        | Update basic user information
         |--------------------------------------------------------------------------
         */
 
@@ -574,12 +786,6 @@ class UserController extends Controller
             'email' => $validated['email'],
             'is_active' => $validated['is_active'],
         ]);
-
-        /*
-        |--------------------------------------------------------------------------
-        | Update Phone
-        |--------------------------------------------------------------------------
-        */
 
         $user->settings()->updateOrCreate(
             ['user_id' => $user->id],
@@ -590,31 +796,60 @@ class UserController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Set Spatie Team
+        | Update company memberships + roles
         |--------------------------------------------------------------------------
         */
 
-        app(PermissionRegistrar::class)
-            ->setPermissionsTeamId($company->id);
+        foreach ($validated['company_access'] as $access) {
+            $companyId = (int) $access['company_id'];
+            $role = $access['role'];
 
-        /*
-        |--------------------------------------------------------------------------
-        | Clear Previously Loaded Role Relationships
-        |--------------------------------------------------------------------------
-        */
+            $company = $companies->get($companyId);
 
-        $user->unsetRelation('roles')
-             ->unsetRelation('permissions');
+            /*
+            |--------------------------------------------------------------------------
+            | Make sure user belongs to the company
+            |--------------------------------------------------------------------------
+            */
 
-        /*
-        |--------------------------------------------------------------------------
-        | Update Company Role
-        |--------------------------------------------------------------------------
-        */
+            $user->companies()->syncWithoutDetaching([
+                $company->id => [
+                    'is_active' => true,
+                    'joined_at' => now(),
+                ],
+            ]);
 
-        $user->syncRoles([
-            $validated['role'],
-        ]);
+            /*
+            |--------------------------------------------------------------------------
+            | Set Spatie team
+            |--------------------------------------------------------------------------
+            */
+
+            app(PermissionRegistrar::class)
+                ->setPermissionsTeamId($company->id);
+
+            /*
+            |--------------------------------------------------------------------------
+            | Refresh role/permission relationships
+            |--------------------------------------------------------------------------
+            */
+
+            $user->unsetRelation('roles');
+            $user->unsetRelation('permissions');
+
+            /*
+            |--------------------------------------------------------------------------
+            | Assign the role for THIS company only
+            |--------------------------------------------------------------------------
+            */
+
+            $user->syncRoles([
+                $role,
+            ]);
+
+            $user->unsetRelation('roles');
+            $user->unsetRelation('permissions');
+        }
     });
 
     return redirect()

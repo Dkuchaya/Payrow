@@ -6,10 +6,10 @@ defineOptions({
     layout: AppLayout,
 })
 
-
-interface Company {
+interface CompanyAccess {
     id: number
     name: string
+    role: string | null
 }
 
 interface User {
@@ -19,15 +19,18 @@ interface User {
     phone?: string | null
     is_active: boolean
     is_super_admin: boolean
-    companies: Company[]
-    roles: string[]
+    company_access?: CompanyAccess[]
 }
 
 const props = defineProps<{
     user: User
 }>()
 
-const roleLabel = (name: string) => {
+const roleLabel = (name: string | null) => {
+    if (!name) {
+        return 'No role assigned'
+    }
+
     return name
         .replaceAll('_', ' ')
         .replace(/\b\w/g, char => char.toUpperCase())
@@ -36,6 +39,7 @@ const roleLabel = (name: string) => {
 const initials = (name: string) => {
     return name
         .split(' ')
+        .filter(Boolean)
         .map(word => word.charAt(0))
         .join('')
         .substring(0, 2)
@@ -60,7 +64,7 @@ const toggleStatus = () => {
     )
 }
 
-const removeCompanyAccess = (company: Company) => {
+const removeCompanyAccess = (company: CompanyAccess) => {
     if (
         !confirm(
             `Remove ${props.user.name} from ${company.name}?`
@@ -75,6 +79,9 @@ const removeCompanyAccess = (company: Company) => {
             props.user.id
         ),
         {
+            data: {
+                company_id: company.id,
+            },
             preserveScroll: true,
         }
     )
@@ -85,12 +92,9 @@ const removeCompanyAccess = (company: Company) => {
     <Head :title="user.name" />
 
     <div class="mx-auto max-w-5xl space-y-6">
-
         <!-- Header -->
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-
             <div class="flex items-center gap-4">
-
                 <div
                     class="flex h-14 w-14 items-center justify-center rounded-full bg-blue-100 text-lg font-bold text-blue-700"
                 >
@@ -99,7 +103,6 @@ const removeCompanyAccess = (company: Company) => {
 
                 <div>
                     <div class="flex items-center gap-2">
-
                         <h1 class="text-2xl font-bold text-gray-900">
                             {{ user.name }}
                         </h1>
@@ -110,18 +113,15 @@ const removeCompanyAccess = (company: Company) => {
                         >
                             Super Admin
                         </span>
-
                     </div>
 
                     <p class="mt-1 text-sm text-gray-500">
                         {{ user.email }}
                     </p>
                 </div>
-
             </div>
 
             <div class="flex gap-2">
-
                 <Link
                     v-if="!user.is_super_admin"
                     :href="route('users.company-access', user.id)"
@@ -144,9 +144,7 @@ const removeCompanyAccess = (company: Company) => {
                 >
                     Edit User
                 </Link>
-
             </div>
-
         </div>
 
         <!-- Status -->
@@ -158,11 +156,8 @@ const removeCompanyAccess = (company: Company) => {
                     : 'border-red-200 bg-red-50'
             "
         >
-
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-
                 <div>
-
                     <p
                         class="text-sm font-semibold"
                         :class="
@@ -189,7 +184,6 @@ const removeCompanyAccess = (company: Company) => {
                                 : 'This user cannot access PAYROW.'
                         }}
                     </p>
-
                 </div>
 
                 <button
@@ -205,22 +199,17 @@ const removeCompanyAccess = (company: Company) => {
                 >
                     {{ user.is_active ? 'Deactivate User' : 'Activate User' }}
                 </button>
-
             </div>
-
         </div>
 
         <div class="grid gap-6 lg:grid-cols-3">
-
             <!-- Account information -->
-            <div class="lg:col-span-2 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-
+            <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm lg:col-span-2">
                 <h2 class="text-lg font-semibold text-gray-900">
                     Account Information
                 </h2>
 
                 <div class="mt-6 grid gap-6 sm:grid-cols-2">
-
                     <div>
                         <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">
                             Full Name
@@ -260,105 +249,98 @@ const removeCompanyAccess = (company: Company) => {
                             {{ user.is_super_admin ? 'Super Admin' : 'Company User' }}
                         </p>
                     </div>
-
                 </div>
-
             </div>
 
-            <!-- Roles -->
+            <!-- Roles by Company -->
             <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-
                 <h2 class="text-lg font-semibold text-gray-900">
-                    Roles
+                    Roles by Company
                 </h2>
 
-                <div class="mt-4 space-y-2">
-
-                    <span
-                        v-for="role in user.roles"
-                        :key="role"
-                        class="block rounded-lg bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700"
+                <div class="mt-4 space-y-3">
+                    <div
+                        v-for="access in (user.company_access ?? [])"
+                        :key="`role-${access.id}`"
+                        class="rounded-lg border border-gray-100 bg-gray-50 p-3"
                     >
-                        {{ roleLabel(role) }}
-                    </span>
+                        <p class="text-sm font-semibold text-gray-900">
+                            {{ access.name }}
+                        </p>
+
+                        <span
+                            class="mt-2 inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700"
+                        >
+                            {{ roleLabel(access.role) }}
+                        </span>
+                    </div>
 
                     <p
-                        v-if="!user.roles.length"
+                        <p v-if="!(user.company_access ?? []).length"
                         class="text-sm text-gray-400"
                     >
-                        No role assigned.
+                        No company role assigned.
                     </p>
-
                 </div>
-
             </div>
-
         </div>
 
         <!-- Company Access -->
         <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
-
             <div class="border-b border-gray-100 px-6 py-5">
-
                 <h2 class="text-lg font-semibold text-gray-900">
                     Company Access
                 </h2>
 
                 <p class="mt-1 text-sm text-gray-500">
-                    Companies this user can access.
+                    Companies this user can access and their assigned roles.
                 </p>
-
             </div>
 
             <div class="divide-y divide-gray-100">
-
                 <div
-                    v-for="company in user.companies"
-                    :key="company.id"
+                    v-for="access in user.company_access"
+                    :key="access.id"
                     class="flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between"
                 >
-
                     <div class="flex items-center gap-3">
-
                         <div
                             class="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-sm font-bold text-gray-600"
                         >
-                            {{ company.name.charAt(0).toUpperCase() }}
+                            {{ access.name?.charAt(0)?.toUpperCase() || '?' }}
                         </div>
 
                         <div>
                             <p class="font-medium text-gray-900">
-                                {{ company.name }}
+                                {{ access.name }}
                             </p>
 
-                            <p class="text-xs text-gray-500">
-                                Company access
+                            <p class="mt-1 text-xs text-gray-500">
+                                Role:
+                                <span class="font-semibold text-gray-700">
+                                    {{ roleLabel(access.role) }}
+                                </span>
                             </p>
                         </div>
-
                     </div>
 
                     <button
                         v-if="!user.is_super_admin"
                         type="button"
                         class="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
-                        @click="removeCompanyAccess(company)"
+                        @click="removeCompanyAccess(access)"
                     >
                         Remove Access
                     </button>
-
                 </div>
 
                 <div
-                    v-if="!user.companies.length"
+                     v-if="!(user.company_access ?? []).length"
                     class="px-6 py-10 text-center text-sm text-gray-400"
                 >
                     This user has no company access.
                 </div>
-
             </div>
-
         </div>
-
     </div>
 </template>
