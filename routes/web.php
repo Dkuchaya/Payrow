@@ -1,5 +1,4 @@
 <?php
-
 use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -20,6 +19,12 @@ use App\Http\Controllers\EmployeeSeparationController;
 use App\Http\Controllers\EmployeeSeparationManagementController;
 use App\Http\Controllers\EmployeeSeparationClearanceController;
 use App\Http\Controllers\EmployeeFinalSettlementController;
+use App\Http\Controllers\LeaveTypeController;
+use App\Http\Controllers\LeavePolicyController;
+use App\Http\Controllers\LeaveBalanceController;
+use App\Http\Controllers\LeaveRequestController;
+use App\Http\Controllers\LeaveController;
+
 
 use Inertia\Inertia;
 
@@ -463,6 +468,158 @@ Route::middleware(['auth', 'super_admin'])->group(function () {
     )->name('company-subscriptions.destroy');
 });
 
+// Company Leave routes
+Route::middleware(['auth'])->group(function () {
+Route::prefix('leave/types')
+    ->name('leave.types.')
+    ->group(function () {
+
+        Route::get('/', [
+            LeaveTypeController::class,
+            'index'
+        ])->name('index');
+
+        Route::post('/', [
+            LeaveTypeController::class,
+            'store'
+        ])->name('store');
+
+        Route::put('/{leaveType}', [
+            LeaveTypeController::class,
+            'update'
+        ])->name('update');
+
+        Route::patch('/{leaveType}/toggle-status', [
+            LeaveTypeController::class,
+            'toggleStatus'
+        ])->name('toggle-status');
+
+        Route::delete('/{leaveType}', [
+            LeaveTypeController::class,
+            'destroy'
+        ])->name('destroy');
+    });
+
+});
+   
+    Route::prefix('leave/policies')
+    ->name('leave.policies.')
+    ->middleware(['auth'])
+    ->group(function () {
+        Route::get('/', [
+            LeavePolicyController::class,
+            'index',
+        ])->name('index');
+
+        Route::post('/', [
+            LeavePolicyController::class,
+            'store',
+        ])->name('store');
+
+        Route::put('/{policy}', [
+            LeavePolicyController::class,
+            'update',
+        ])->name('update');
+
+        Route::patch('/{policy}/toggle-status', [
+            LeavePolicyController::class,
+            'toggleStatus',
+        ])->name('toggle-status');
+
+        Route::delete('/{policy}', [
+            LeavePolicyController::class,
+            'destroy',
+        ])->name('destroy');
+    });
+
+    Route::prefix('leave/balances')
+    ->name('leave.balances.')
+    ->middleware(['auth'])
+    ->group(function () {
+
+        Route::get('/', [
+            LeaveBalanceController::class,
+            'index',
+        ])->name('index');
+
+        Route::post('/generate', [
+            LeaveBalanceController::class,
+            'generate',
+        ])->name('generate');
+
+        Route::patch('/{balance}/adjust', [
+            LeaveBalanceController::class,
+            'adjust',
+        ])->name('adjust');
+
+        Route::post('/carry-forward', [LeaveBalanceController::class, 'carryForward'])
+            ->name('carry-forward');
+
+            Route::post('/accrue', [LeaveBalanceController::class, 'accrue'])
+        ->name('accrue');
+    });
+
+   Route::prefix('leave/requests')
+    ->name('leave.requests.')
+    ->middleware(['auth'])
+    ->group(function () {
+
+        Route::get('/', [
+            LeaveRequestController::class,
+            'index'
+        ])->name('index');
+
+        Route::get('/create', [
+            LeaveRequestController::class,
+            'create'
+        ])->name('create');
+
+        Route::get('/lookup-options', [
+            LeaveRequestController::class,
+            'options'
+        ])->name('lookup-options');
+
+        Route::post('/', [
+            LeaveRequestController::class,
+            'store'
+        ])->name('store');
+
+        Route::get('/{leaveRequest}', [
+            LeaveRequestController::class,
+            'show'
+        ])
+            ->whereNumber('leaveRequest')
+            ->name('show');
+
+        Route::post('/{leaveRequest}/approve', [
+            LeaveRequestController::class,
+            'approve'
+        ])->name('approve');
+
+        Route::post('/{leaveRequest}/reject', [
+            LeaveRequestController::class,
+            'reject'
+        ])->name('reject');
+
+        Route::post('/{leaveRequest}/cancel', [
+            LeaveRequestController::class,
+            'cancel'
+        ])->name('cancel');
+
+        Route::get('/{leaveRequest}/attachment', [
+            LeaveRequestController::class,
+            'attachment'
+        ])->name('attachment');
+    });
+
+    Route::get('/leave', [
+        LeaveController::class,
+        'index'
+    ])
+        ->middleware(['auth'])
+        ->name('leave.index');
+    
+  
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');

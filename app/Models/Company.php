@@ -73,9 +73,29 @@ public function activeSubscription()
         ->latestOfMany();
 }
 
-public function employees(): HasMany
-{
-    return $this->hasMany(Employee::class);
-}    
+    public function employees(): HasMany
+    {
+        return $this->hasMany(Employee::class);
+    }   
+
+    public function leaveTypes(): HasMany
+    {
+        return $this->hasMany(LeaveType::class);
+    }
+
+    public function leavePolicies(): HasMany
+    {
+        return $this->hasMany(LeavePolicy::class);
+    }
+
+    public function leaveBalances(): HasMany
+    {
+        return $this->hasMany(LeaveBalance::class);
+    }
+
+    public function leaveRequests(): HasMany
+    {
+        return $this->hasMany(LeaveRequest::class);
+    }
 
 }

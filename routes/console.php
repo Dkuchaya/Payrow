@@ -13,3 +13,7 @@ Schedule::command('subscriptions:remind')
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
+
+Schedule::command('leave:accrue')
+    ->monthlyOn(1, '00:10')
+    ->withoutOverlapping();

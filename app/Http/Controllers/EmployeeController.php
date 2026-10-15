@@ -292,7 +292,7 @@ class EmployeeController extends Controller
 
         $supervisors = Employee::query()
             ->where('company_id', $company->id)
-            ->whereIn('employment_employment_status', [
+            ->whereIn('employment_status', [
                 'active',
                 'on_leave',
                 'suspended',
@@ -303,6 +303,7 @@ class EmployeeController extends Controller
                 'id',
                 'employee_number',
                 'first_name',
+                'employment_status',
                 'last_name',
             ]);
 
@@ -476,7 +477,7 @@ class EmployeeController extends Controller
                 ]),
             ],
 
-            'employment_employment_status' => [
+            'employment_status' => [
                 'required',
                 Rule::in([
                     'active',
@@ -701,7 +702,7 @@ class EmployeeController extends Controller
             $supervisors = Employee::query()
                 ->where('company_id', $company->id)
                 ->where('id', '!=', $employee->id)
-                ->whereIn('employment_employment_status', [
+                ->whereIn('employment_status', [
                     'active',
                     'on_leave',
                 ])

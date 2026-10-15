@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+
 class Employee extends Model
 {
     use HasFactory, SoftDeletes;
@@ -191,4 +192,17 @@ class Employee extends Model
                 ])
                 ->latestOfMany();
         }
+
+
+        public function leaveBalances(): HasMany
+            {
+                return $this->hasMany(LeaveBalance::class);
+            }
+
+            public function leaveRequests(): HasMany
+            {
+                return $this->hasMany(LeaveRequest::class);
+            }
+
+            
 }
