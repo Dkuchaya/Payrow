@@ -98,4 +98,44 @@ public function activeSubscription()
         return $this->hasMany(LeaveRequest::class);
     }
 
+    public function attendanceDevices(): HasMany
+{
+    return $this->hasMany(
+        AttendanceDevice::class,
+        'company_id'
+    );
+}
+
+public function attendancePunches(): HasMany
+{
+    return $this->hasMany(
+        AttendancePunch::class,
+        'company_id'
+    );
+}
+
+public function attendanceRecords(): HasMany
+{
+    return $this->hasMany(
+        AttendanceRecord::class,
+        'company_id'
+    );
+}
+
+public function workSchedules(): HasMany
+{
+    return $this->hasMany(
+        WorkSchedule::class,
+        'company_id'
+    );
+}
+
+public function employeeWorkSchedules(): HasMany
+{
+    return $this->hasMany(
+        EmployeeWorkSchedule::class,
+        'company_id'
+    );
+}
+
 }

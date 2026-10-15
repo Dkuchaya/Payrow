@@ -952,9 +952,11 @@ function usagePercentage() {
                             </td>
 
                             <!-- Actions -->
-                            <td
-                                class="whitespace-nowrap px-6 py-4 text-right"
-                            >
+                        <td
+                            class="whitespace-nowrap px-6 py-4 text-right"
+                        >
+                            <div class="flex items-center justify-end gap-2">
+
                                 <Link
                                     :href="
                                         route(
@@ -966,7 +968,21 @@ function usagePercentage() {
                                 >
                                     View
                                 </Link>
-                            </td>
+
+                                <Link
+                                    :href="
+                                        route(
+                                            'employees.work-schedules.index',
+                                            employee.id
+                                        )
+                                    "
+                                    class="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 transition hover:bg-blue-100"
+                                >
+                                    Work Schedule
+                                </Link>
+
+                            </div>
+                        </td>
                         </tr>
 
                         <tr

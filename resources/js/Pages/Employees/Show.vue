@@ -227,6 +227,13 @@ function statusClass(status?: string | null) {
                     Edit Employee
                 </Link>
 
+                <Link
+                :href="`/employees/${employee.id}/work-schedules`"
+                class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+            >
+                Work Schedule
+            </Link>
+
             </div>
         </div>
 

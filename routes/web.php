@@ -24,7 +24,8 @@ use App\Http\Controllers\LeavePolicyController;
 use App\Http\Controllers\LeaveBalanceController;
 use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\LeaveController;
-
+use App\Http\Controllers\WorkScheduleController;
+use App\Http\Controllers\EmployeeWorkScheduleController;
 
 use Inertia\Inertia;
 
@@ -618,6 +619,70 @@ Route::prefix('leave/types')
     ])
         ->middleware(['auth'])
         ->name('leave.index');
+
+
+// workschedules Route
+Route::prefix('work-schedules')
+    ->name('work-schedules.')
+    ->middleware(['auth'])
+    ->group(function () {
+
+        Route::get('/', [WorkScheduleController::class, 'index'])
+            ->name('index');
+
+        Route::get('/create', [WorkScheduleController::class, 'create'])
+            ->name('create');
+
+        Route::post('/', [WorkScheduleController::class, 'store'])
+            ->name('store');
+
+        Route::get('/{workSchedule}/edit', [WorkScheduleController::class, 'edit'])
+            ->name('edit');
+
+        Route::put('/{workSchedule}', [WorkScheduleController::class, 'update'])
+            ->name('update');
+
+        Route::get('/{workSchedule}', [WorkScheduleController::class, 'show'])
+            ->name('show');
+    });
+
+// work-schedules Route
+        Route::prefix('employees/{employee}/work-schedules')
+        ->name('employees.work-schedules.')
+        ->middleware(['auth'])
+        ->group(function () {
+            Route::get('/', [
+                EmployeeWorkScheduleController::class,
+                'index'
+            ])->name('index');
+
+            Route::post('/', [
+                EmployeeWorkScheduleController::class,
+                'store'
+            ])->name('store');
+
+            Route::get('/{assignment}/edit', [
+                EmployeeWorkScheduleController::class,
+                'edit'
+            ])->name('edit');
+
+            Route::put('/{assignment}', [
+                EmployeeWorkScheduleController::class,
+                'update'
+            ])->name('update');
+
+                        Route::patch('/{assignment}/end', [
+                EmployeeWorkScheduleController::class,
+                'end'
+            ])->name('end');
+
+                Route::delete('/{assignment}/cancel', [
+                EmployeeWorkScheduleController::class,
+                'cancel'
+            ])->name('cancel');
+        });
+
+        
     
   
 Route::middleware('auth')->group(function () {

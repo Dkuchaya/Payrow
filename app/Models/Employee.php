@@ -199,9 +199,52 @@ class Employee extends Model
                 return $this->hasMany(LeaveBalance::class);
             }
 
-            public function leaveRequests(): HasMany
+         public function leaveRequests(): HasMany
             {
                 return $this->hasMany(LeaveRequest::class);
+            }
+
+                    public function attendanceRecords(): HasMany
+            {
+                return $this->hasMany(
+                    AttendanceRecord::class,
+                    'employee_id'
+                );
+            }
+
+            public function attendancePunches(): HasMany
+            {
+                return $this->hasMany(
+                    AttendancePunch::class,
+                    'employee_id'
+                );
+            }
+
+             public function workScheduleAssignments(): HasMany
+            {
+                return $this->hasMany(
+                    EmployeeWorkSchedule::class,
+                    'employee_id'
+                );
+            }
+
+            
+
+            public function workSchedules()
+            {
+                return $this->belongsToMany(
+                    WorkSchedule::class,
+                    'employee_work_schedules',
+                    'employee_id',
+                    'work_schedule_id'
+                )->withPivot([
+                    'company_id',
+                    'effective_from',
+                    'effective_to',
+                    'is_primary',
+                    'notes',
+                    'assigned_by',
+                ])->withTimestamps();
             }
 
             
