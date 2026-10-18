@@ -15,6 +15,8 @@ class SetActiveCompany
         Request $request,
         Closure $next
     ): Response {
+
+    
         if (!$request->user()) {
             return $next($request);
         }
@@ -68,6 +70,7 @@ class SetActiveCompany
                     ->where('companies.is_active', true)
                     ->where('companies.id', $companyId)
                     ->first();
+
             }
 
             if (!$company) {

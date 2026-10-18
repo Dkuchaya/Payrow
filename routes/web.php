@@ -26,6 +26,9 @@ use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\WorkScheduleController;
 use App\Http\Controllers\EmployeeWorkScheduleController;
+use App\Http\Controllers\AttendanceController;
+use App\Http\Controllers\AttendanceDeviceController;
+use App\Http\Controllers\AttendanceDeviceEmployeeController;
 
 use Inertia\Inertia;
 
@@ -681,6 +684,101 @@ Route::prefix('work-schedules')
                 'cancel'
             ])->name('cancel');
         });
+
+
+        Route::prefix('attendance')
+        ->name('attendance.')
+        ->middleware(['auth'])
+        ->group(function () {
+            Route::get('/', [
+                AttendanceController::class,
+                'index'
+            ])->name('index');
+
+            Route::get('/create', [
+                AttendanceController::class,
+                'create'
+            ])->name('create');
+
+            Route::post('/', [
+                AttendanceController::class,
+                'store'
+            ])->name('store');
+             Route::get('/{attendance}/edit', [AttendanceController::class, 'edit'])
+            ->name('edit');
+
+            Route::put('/{attendance}', [AttendanceController::class, 'update'])
+            ->name('update');
+        });
+
+        Route::prefix('attendance-devices')
+        ->name('attendance-devices.')
+        ->middleware(['auth'])
+        ->group(function () {
+        Route::get('/', [AttendanceDeviceController::class, 'index'])
+            ->name('index');
+
+        Route::get('/create', [AttendanceDeviceController::class, 'create'])
+            ->name('create');
+
+        Route::post('/', [AttendanceDeviceController::class, 'store'])
+            ->name('store');
+
+        Route::get('/{attendanceDevice}/edit', [AttendanceDeviceController::class, 'edit'])
+            ->name('edit');
+
+        Route::put('/{attendanceDevice}', [AttendanceDeviceController::class, 'update'])
+            ->name('update');
+
+        Route::get('/{attendanceDevice}', [AttendanceDeviceController::class, 'show'])
+            ->name('show');
+
+        Route::post('/{attendanceDevice}/test-connection', [AttendanceDeviceController::class, 'testConnection'])
+            ->name('test-connection');
+
+        Route::post('/{attendanceDevice}/sync', [AttendanceDeviceController::class, 'sync'])
+            ->name('sync');
+
+        Route::patch('/{attendanceDevice}/toggle', [AttendanceDeviceController::class, 'toggle'])
+            ->name('toggle');
+        
+    });
+
+    Route::prefix('attendance-devices/{attendanceDevice}/mappings')
+    ->name('attendance-devices.mappings.')
+    ->middleware(['auth'])
+    ->group(function () {
+
+        Route::get('/', [
+            AttendanceDeviceEmployeeController::class,
+            'index'
+        ])->name('index');
+
+        Route::get('/create', [
+            AttendanceDeviceEmployeeController::class,
+            'create'
+        ])->name('create');
+
+        Route::post('/', [
+            AttendanceDeviceEmployeeController::class,
+            'store'
+        ])->name('store');
+
+        Route::get('/{mapping}/edit', [
+            AttendanceDeviceEmployeeController::class,
+            'edit'
+        ])->name('edit');
+
+        Route::put('/{mapping}', [
+            AttendanceDeviceEmployeeController::class,
+            'update'
+        ])->name('update');
+
+        Route::patch('/{mapping}/toggle', [
+            AttendanceDeviceEmployeeController::class,
+            'toggle'
+        ])->name('toggle');
+    });
 
         
     

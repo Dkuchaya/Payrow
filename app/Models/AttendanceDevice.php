@@ -63,4 +63,13 @@ class AttendanceDevice extends Model
             'attendance_device_id'
         );
     }
+
+    public function employeeMappings(): HasMany
+    {
+        return $this->hasMany(
+            AttendanceDeviceEmployee::class,
+            'attendance_device_id'
+        );
+    }   
+
 }

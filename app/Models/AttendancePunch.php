@@ -57,4 +57,5 @@ class AttendancePunch extends Model
             'attendance_device_id'
         );
     }
+    
 }

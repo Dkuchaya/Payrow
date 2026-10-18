@@ -247,5 +247,12 @@ class Employee extends Model
                 ])->withTimestamps();
             }
 
+            public function attendanceDeviceMappings()
+            {
+                return $this->hasMany(
+                    AttendanceDeviceEmployee::class
+                );
+            }
+
             
 }

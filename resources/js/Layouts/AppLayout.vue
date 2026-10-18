@@ -131,6 +131,12 @@ const navigation = computed(() => {
         icon: '🕐',
     },
     {
+        name: 'Attendance Devices',
+        href: '/attendance-devices',
+        icon: '📟',
+    },
+    
+    {
         name: 'Payroll',
         href: '/payroll',
         icon: '💰',

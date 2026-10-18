@@ -13,18 +13,20 @@ use InvalidArgumentException;
 
 class WorkScheduleService
 {
+
+    
     /**
      * Get the employee's active schedule for a specific date.
      */
     public function getScheduleForEmployee(
-        Employee $employee,
-        Carbon|string $date
+    Employee $employee,
+    Carbon|string $date
     ): ?EmployeeWorkSchedule {
-        $date = Carbon::parse($date)->startOfDay();
+        $date = Carbon::parse($date);
 
         return EmployeeWorkSchedule::query()
             ->with([
-                'schedule.days',
+                'workSchedule.days',
             ])
             ->where('company_id', $employee->company_id)
             ->where('employee_id', $employee->id)
@@ -43,29 +45,26 @@ class WorkScheduleService
      * Get the schedule configuration for a specific date.
      */
     public function getScheduleDay(
-        Employee $employee,
-        Carbon|string $date
-    ): ?WorkScheduleDay {
-        $date = Carbon::parse($date);
+    Employee $employee,
+    Carbon|string $date
+): ?WorkScheduleDay {
+    $date = Carbon::parse($date);
 
-        $assignment = $this->getScheduleForEmployee(
-            $employee,
-            $date
-        );
+    $assignment = $this->getScheduleForEmployee(
+        $employee,
+        $date
+    );
 
-        if (!$assignment || !$assignment->schedule) {
-            return null;
-        }
-
-        // ISO weekday:
-        // Monday = 1
-        // Sunday = 7
-        $dayOfWeek = $date->dayOfWeekIso;
-
-        return $assignment->schedule
-            ->days
-            ->firstWhere('day_of_week', $dayOfWeek);
+    if (!$assignment) {
+        return null;
     }
+
+    $dayOfWeek = $date->dayOfWeekIso;
+
+    return $assignment->workSchedule
+        ->days
+        ->firstWhere('day_of_week', $dayOfWeek);
+}
 
     /**
      * Assign a schedule to an employee.
