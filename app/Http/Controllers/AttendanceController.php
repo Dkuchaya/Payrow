@@ -25,12 +25,15 @@ class AttendanceController extends Controller
     /**
      * Attendance records.
      */
-    
     public function index(Request $request): Response
-{
-    $company = $this->companyContext->get();
+    {
+        $company = $this->companyContext->get();
 
-    abort_unless($company, 400, 'No active company selected.');
+        abort_unless(
+            $company,
+            400,
+            'No active company selected.'
+        );
 
         $this->authorizeCompanyAccess($request, $company);
 
@@ -43,10 +46,37 @@ class AttendanceController extends Controller
             ->orderByDesc('attendance_date')
             ->orderByDesc('id');
 
-        if ($request->filled('date')) {
+        /*
+        |--------------------------------------------------------------------------
+        | Filters
+        |--------------------------------------------------------------------------
+        */
+
+        // Backwards compatibility with the existing single-date filter.
+        if (
+            $request->filled('date')
+            && !$request->filled('date_from')
+            && !$request->filled('date_to')
+        ) {
             $query->whereDate(
                 'attendance_date',
                 $request->input('date')
+            );
+        }
+
+        if ($request->filled('date_from')) {
+            $query->whereDate(
+                'attendance_date',
+                '>=',
+                $request->input('date_from')
+            );
+        }
+
+        if ($request->filled('date_to')) {
+            $query->whereDate(
+                'attendance_date',
+                '<=',
+                $request->input('date_to')
             );
         }
 
@@ -57,9 +87,52 @@ class AttendanceController extends Controller
             );
         }
 
+        if ($request->filled('status')) {
+            $query->where(
+                'status',
+                $request->input('status')
+            );
+        }
+
+        if ($request->filled('source')) {
+            $query->where(
+                'source',
+                $request->input('source')
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Summary
+        |--------------------------------------------------------------------------
+        */
+
+       $summary = (clone $query)
+    ->reorder()
+    ->selectRaw("
+        SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) as present,
+        SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END) as late,
+        SUM(CASE WHEN status = 'absent' THEN 1 ELSE 0 END) as absent,
+        SUM(CASE WHEN status = 'incomplete' THEN 1 ELSE 0 END) as incomplete,
+        COALESCE(SUM(overtime_hours), 0) as overtime_hours
+    ")
+    ->first();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Pagination
+        |--------------------------------------------------------------------------
+        */
+
         $attendance = $query
             ->paginate(20)
             ->withQueryString();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Employees
+        |--------------------------------------------------------------------------
+        */
 
         $employees = Employee::query()
             ->where('company_id', $company->id)
@@ -76,11 +149,29 @@ class AttendanceController extends Controller
             'Attendance/Index',
             [
                 'company' => $company,
+
                 'attendance' => $attendance,
+
                 'employees' => $employees,
+
+                'summary' => [
+                    'present' => (int) ($summary->present ?? 0),
+                    'late' => (int) ($summary->late ?? 0),
+                    'absent' => (int) ($summary->absent ?? 0),
+                    'incomplete' => (int) ($summary->incomplete ?? 0),
+                    'overtime_hours' => round(
+                        (float) ($summary->overtime_hours ?? 0),
+                        2
+                    ),
+                ],
+
                 'filters' => [
                     'date' => $request->input('date'),
+                    'date_from' => $request->input('date_from'),
+                    'date_to' => $request->input('date_to'),
                     'employee_id' => $request->input('employee_id'),
+                    'status' => $request->input('status'),
+                    'source' => $request->input('source'),
                 ],
             ]
         );
@@ -102,17 +193,17 @@ class AttendanceController extends Controller
         $this->authorizeCompanyAccess($request, $company);
 
         $employees = Employee::query()
-        ->where('company_id', $company->id)
-        ->where('employment_status', 'active')
-        ->orderBy('first_name')
-        ->orderBy('last_name')
-        ->get([
-            'id',
-            'employee_number',
-            'first_name',
-            'last_name',
-            'employment_status',
-        ]);
+            ->where('company_id', $company->id)
+            ->where('employment_status', 'active')
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get([
+                'id',
+                'employee_number',
+                'first_name',
+                'last_name',
+                'employment_status',
+            ]);
 
         return Inertia::render(
             'Attendance/Create',
@@ -212,7 +303,10 @@ class AttendanceController extends Controller
         } catch (InvalidArgumentException $e) {
             return Redirect::back()
                 ->withInput()
-                ->with('error', $e->getMessage());
+                ->with(
+                    'error',
+                    $e->getMessage()
+                );
         }
 
         return Redirect::route(
@@ -223,11 +317,121 @@ class AttendanceController extends Controller
         );
     }
 
-
-
     public function edit(
+        Request $request,
+        AttendanceRecord $attendance
+    ): Response {
+        $company = $this->companyContext->get();
+
+        abort_unless(
+            $company,
+            400,
+            'No active company selected.'
+        );
+
+        $this->authorizeCompanyAccess($request, $company);
+
+        abort_unless(
+            (int) $attendance->company_id === (int) $company->id,
+            404
+        );
+
+        $employee = Employee::query()
+            ->where('company_id', $company->id)
+            ->where('employment_status', 'active')
+            ->findOrFail($attendance->employee_id);
+
+        return Inertia::render(
+            'Attendance/Edit',
+            [
+                'company' => $company,
+                'attendance' => $attendance->load('employee'),
+                'employee' => $employee,
+            ]
+        );
+    }
+
+    public function update(
+        Request $request,
+        AttendanceRecord $attendance
+    ): RedirectResponse {
+        $company = $this->companyContext->get();
+
+        abort_unless(
+            $company,
+            400,
+            'No active company selected.'
+        );
+
+        $this->authorizeCompanyAccess($request, $company);
+
+        abort_unless(
+            (int) $attendance->company_id === (int) $company->id,
+            404
+        );
+
+        $validated = $request->validate([
+            'attendance_date' => [
+                'required',
+                'date',
+            ],
+
+            'clock_in_at' => [
+                'nullable',
+                'date',
+            ],
+
+            'clock_out_at' => [
+                'nullable',
+                'date',
+            ],
+
+            'status' => [
+                'required',
+                'string',
+                'max:50',
+            ],
+
+            'adjustment_reason' => [
+                'nullable',
+                'string',
+                'max:2000',
+            ],
+
+            'notes' => [
+                'nullable',
+                'string',
+                'max:2000',
+            ],
+        ]);
+
+        try {
+            $this->attendanceService->updateManualAttendance(
+                $company,
+                $attendance,
+                $validated
+            );
+        } catch (InvalidArgumentException $e) {
+            return Redirect::back()
+                ->withInput()
+                ->with(
+                    'error',
+                    $e->getMessage()
+                );
+        }
+
+        return Redirect::route(
+            'attendance.index'
+        )->with(
+            'success',
+            'Attendance updated successfully.'
+        );
+    }
+
+
+    public function show(
     Request $request,
-    AttendanceRecord $attendance
+    int $attendance
 ): Response {
     $company = $this->companyContext->get();
 
@@ -235,90 +439,19 @@ class AttendanceController extends Controller
 
     $this->authorizeCompanyAccess($request, $company);
 
-    // Make sure the attendance record belongs to the active company.
-    abort_unless(
-        (int) $attendance->company_id === (int) $company->id,
-        404
-    );
-
-    // Only active employees can have attendance edited.
-    $employee = Employee::query()
+    $record = AttendanceRecord::query()
         ->where('company_id', $company->id)
-        ->where('employment_status', 'active')
-        ->findOrFail($attendance->employee_id);
+        ->with([
+            'employee',
+            'device',
+            'adjustedBy',
+        ])
+        ->findOrFail($attendance);
 
-    return Inertia::render('Attendance/Edit', [
+    return Inertia::render('Attendance/Show', [
         'company' => $company,
-        'attendance' => $attendance->load('employee'),
-        'employee' => $employee,
+        'record' => $record,
     ]);
-}
-
-public function update(
-    Request $request,
-    AttendanceRecord $attendance
-): RedirectResponse {
-    $company = $this->companyContext->get();
-
-    abort_unless($company, 400, 'No active company selected.');
-
-    $this->authorizeCompanyAccess($request, $company);
-
-    // Tenant protection.
-    abort_unless(
-        (int) $attendance->company_id === (int) $company->id,
-        404
-    );
-
-    $validated = $request->validate([
-        'attendance_date' => [
-            'required',
-            'date',
-        ],
-
-        'clock_in_at' => [
-            'nullable',
-            'date',
-        ],
-
-        'clock_out_at' => [
-            'nullable',
-            'date',
-        ],
-
-        'status' => [
-            'required',
-            'string',
-            'max:50',
-        ],
-
-        'adjustment_reason' => [
-            'nullable',
-            'string',
-            'max:2000',
-        ],
-
-        'notes' => [
-            'nullable',
-            'string',
-            'max:2000',
-        ],
-    ]);
-
-    try {
-        $this->attendanceService->updateManualAttendance(
-            $company,
-            $attendance,
-            $validated
-        );
-    } catch (InvalidArgumentException $e) {
-        return Redirect::back()
-            ->withInput()
-            ->with('error', $e->getMessage());
-    }
-
-    return Redirect::route('attendance.index')
-        ->with('success', 'Attendance updated successfully.');
 }
 
     /**

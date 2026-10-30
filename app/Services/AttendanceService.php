@@ -204,65 +204,80 @@ class AttendanceService
      * for a specific attendance date.
      */
     protected function getScheduleForAttendance(
-        Employee $employee,
-        Carbon $date
-    ): ?array {
-        $scheduleDay = $this->workScheduleService->getScheduleDay(
-            $employee,
-            $date
-        );
+    Employee $employee,
+    Carbon $date
+): array {
+    $scheduleDay = app(WorkScheduleService::class)
+        ->getScheduleDay($employee, $date);
 
-        if (!$scheduleDay) {
-            return null;
-        }
-
-        if (!$scheduleDay->is_working_day) {
-            return [
-                'is_working_day' => false,
-                'start_time' => null,
-                'end_time' => null,
-                'break_minutes' => 0,
-                'grace_period_minutes' => 0,
-                'early_departure_grace_minutes' => 0,
-                'allow_overtime' => false,
-                'overtime_after_minutes' => 0,
-            ];
-        }
-
-        $schedule = $scheduleDay->schedule;
-
+    if (!$scheduleDay) {
         return [
-            'is_working_day' => true,
-            'start_time' => $scheduleDay->start_time
-                ?? $schedule?->default_start_time,
-            'end_time' => $scheduleDay->end_time
-                ?? $schedule?->default_end_time,
-            'break_minutes' => (int) (
-                $scheduleDay->break_minutes
-                ?? $schedule?->default_break_minutes
-                ?? 0
-            ),
-            'grace_period_minutes' => (int) (
-                $scheduleDay->grace_period_minutes
-                ?? $schedule?->grace_period_minutes
-                ?? 0
-            ),
-            'early_departure_grace_minutes' => (int) (
-                $scheduleDay->early_departure_grace_minutes
-                ?? $schedule?->early_departure_grace_minutes
-                ?? 0
-            ),
-            'allow_overtime' => (bool) (
-                $scheduleDay->allow_overtime
-                ?? $schedule?->allow_overtime
-                ?? false
-            ),
-            'overtime_after_minutes' => (int) (
-                $schedule?->overtime_after_minutes
-                ?? 0
-            ),
+            'is_working_day' => false,
+            'start_time' => null,
+            'end_time' => null,
+            'break_minutes' => 0,
+            'grace_period_minutes' => 0,
+            'early_departure_grace_minutes' => 0,
+            'allow_overtime' => false,
+            'overtime_after_minutes' => 0,
         ];
     }
+
+    $workSchedule = $scheduleDay->workSchedule;
+
+    if (!$workSchedule) {
+        return [
+            'is_working_day' => (bool) $scheduleDay->is_working_day,
+            'start_time' => $scheduleDay->start_time,
+            'end_time' => $scheduleDay->end_time,
+            'break_minutes' => (int) ($scheduleDay->break_minutes ?? 0),
+            'grace_period_minutes' => (int) ($scheduleDay->grace_period_minutes ?? 0),
+            'early_departure_grace_minutes' => (int) ($scheduleDay->early_departure_grace_minutes ?? 0),
+            'allow_overtime' => (bool) ($scheduleDay->allow_overtime ?? false),
+            'overtime_after_minutes' => (int) ($workSchedule?->overtime_after_minutes ?? 0),
+        ];
+    }
+
+    return [
+        'is_working_day' => (bool) $scheduleDay->is_working_day,
+
+        // Day-specific times take priority.
+        'start_time' => $scheduleDay->start_time
+            ?? $workSchedule->default_start_time,
+
+        'end_time' => $scheduleDay->end_time
+            ?? $workSchedule->default_end_time,
+
+        'break_minutes' => (int) (
+            $scheduleDay->break_minutes
+            ?? $workSchedule->default_break_minutes
+            ?? 0
+        ),
+
+        'grace_period_minutes' => (int) (
+            $scheduleDay->grace_period_minutes
+            ?? $workSchedule->grace_period_minutes
+            ?? 0
+        ),
+
+        'early_departure_grace_minutes' => (int) (
+            $scheduleDay->early_departure_grace_minutes
+            ?? $workSchedule->early_departure_grace_minutes
+            ?? 0
+        ),
+
+        'allow_overtime' => (bool) (
+            $scheduleDay->allow_overtime
+            ?? $workSchedule->allow_overtime
+            ?? false
+        ),
+
+        'overtime_after_minutes' => (int) (
+            $workSchedule->overtime_after_minutes
+            ?? 0
+        ),
+    ];
+}
 
 
     /*
@@ -294,6 +309,8 @@ class AttendanceService
         $record->employee,
         $date
     );
+
+   
 
     /*
      * No work schedule assigned.

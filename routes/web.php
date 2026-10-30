@@ -709,6 +709,9 @@ Route::prefix('work-schedules')
 
             Route::put('/{attendance}', [AttendanceController::class, 'update'])
             ->name('update');
+
+            Route::get('/{attendance}', [AttendanceController::class, 'show'])
+            ->name('attendance.show');
         });
 
         Route::prefix('attendance-devices')
