@@ -138,4 +138,9 @@ public function employeeWorkSchedules(): HasMany
     );
 }
 
+public function payrollRuns(): HasMany
+{
+    return $this->hasMany(PayrollRun::class);
+}
+
 }

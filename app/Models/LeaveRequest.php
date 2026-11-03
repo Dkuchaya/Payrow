@@ -76,8 +76,8 @@ class LeaveRequest extends Model
         return $this->belongsTo(User::class, 'cancelled_by');
     }
 
-        public function leavePolicy()
-    {
-        return $this->belongsTo(LeavePolicy::class);
-    }
+    //     public function leavePolicy()
+    // {
+    //     return $this->belongsTo(LeavePolicy::class);
+    // }
 }

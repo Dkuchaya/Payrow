@@ -29,7 +29,11 @@ use App\Http\Controllers\EmployeeWorkScheduleController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\AttendanceDeviceController;
 use App\Http\Controllers\AttendanceDeviceEmployeeController;
-
+use App\Http\Controllers\PayrollPeriodController;
+use App\Http\Controllers\PayrollRunController;
+use App\Http\Controllers\SalaryStructureController;
+use App\Http\Controllers\PayrollComponentController;
+use App\Http\Controllers\EmployeePayrollComponentController;
 use Inertia\Inertia;
 
 
@@ -783,6 +787,130 @@ Route::prefix('work-schedules')
         ])->name('toggle');
     });
 
+
+Route::middleware(['auth'])
+    ->prefix('payroll')
+    ->name('payroll.')
+    ->group(function () {
+
+    Route::get('/runs', [PayrollRunController::class, 'index'])
+                 ->name('runs.index');
+    Route::get('/runs/{payrollRun}', [PayrollRunController::class, 'show'])
+    ->name('runs.show');
+    Route::post('/runs/{payrollRun}/employees', [PayrollRunController::class, 'addEmployees'])
+    ->name('runs.employees.store');
+
+    Route::delete('/runs/{payrollRun}/employees/{payrollRunItem}', [
+        PayrollRunController::class,
+        'removeEmployee',
+    ])->name('runs.employees.destroy');
+
+     Route::patch(
+            '/runs/{payrollRun}/options',
+            [PayrollRunController::class, 'updateOptions']
+        )->name('runs.options.update');
+
+
+    Route::get('/employees/{employee}/components', [
+        EmployeePayrollComponentController::class,
+        'index',
+    ])->name('employee-components.index');
+
+    Route::post('/employees/{employee}/components', [
+        EmployeePayrollComponentController::class,
+        'store',
+    ])->name('employee-components.store');
+
+    Route::put('/employee-components/{employeePayrollComponent}', [
+        EmployeePayrollComponentController::class,
+        'update',
+    ])->name('employee-components.update');
+
+    Route::post('/employee-components/{employeePayrollComponent}/deactivate', [
+        EmployeePayrollComponentController::class,
+        'deactivate',
+    ])->name('employee-components.deactivate');
+
+
+    Route::post('/runs/{payrollRun}/calculate', [
+    PayrollRunController::class,
+    'calculate',
+    ])->name('runs.calculate');
+
+        Route::prefix('periods')
+            ->name('periods.')
+            ->group(function () {
+                Route::get('/', [PayrollPeriodController::class, 'index'])
+                    ->name('index');
+
+                Route::get('/create', [PayrollPeriodController::class, 'create'])
+                    ->name('create');
+
+                Route::post('/', [PayrollPeriodController::class, 'store'])
+                    ->name('store');
+
+                Route::get('/{payrollPeriod}/edit', [PayrollPeriodController::class, 'edit'])
+                    ->name('edit');
+
+                Route::put('/{payrollPeriod}', [PayrollPeriodController::class, 'update'])
+                    ->name('update');
+
+                Route::post('/{payrollPeriod}/process', [PayrollPeriodController::class, 'process'])
+                    ->name('process');
+
+                Route::post('/{payrollPeriod}/processed', [PayrollPeriodController::class, 'markProcessed'])
+                    ->name('processed');
+
+                Route::post('/{payrollPeriod}/approve', [PayrollPeriodController::class, 'approve'])
+                    ->name('approve');
+
+                Route::post('/{payrollPeriod}/paid', [PayrollPeriodController::class, 'markPaid'])
+                    ->name('paid');
+
+                Route::post('/{payrollPeriod}/lock', [PayrollPeriodController::class, 'lock'])
+                    ->name('lock');
+                
+               Route::post('/{payrollPeriod}/runs', [PayrollRunController::class, 'store'])
+                     ->name('runs.store'); 
+                
+            });
+
+                    Route::prefix('salary-structures')
+            ->name('salary-structures.')
+            ->group(function () {
+                Route::get('/', [SalaryStructureController::class, 'index'])
+                    ->name('index');
+
+                Route::get('/create', [SalaryStructureController::class, 'create'])
+                    ->name('create');
+
+                Route::post('/', [SalaryStructureController::class, 'store'])
+                    ->name('store');
+
+                Route::get('/{salaryStructure}/edit', [SalaryStructureController::class, 'edit'])
+                    ->name('edit');
+
+                Route::put('/{salaryStructure}', [SalaryStructureController::class, 'update'])
+                    ->name('update');
+
+                Route::post('/{salaryStructure}/deactivate', [SalaryStructureController::class, 'deactivate'])
+                    ->name('deactivate');
+            });
+
+            Route::get('/components', [PayrollComponentController::class, 'index'])
+    ->name('components.index');
+
+Route::post('/components', [PayrollComponentController::class, 'store'])
+    ->name('components.store');
+
+Route::put('/components/{payrollComponent}', [PayrollComponentController::class, 'update'])
+    ->name('components.update');
+
+Route::post('/components/{payrollComponent}/deactivate', [PayrollComponentController::class, 'deactivate'])
+    ->name('components.deactivate');
+    });
+
+   
         
     
   

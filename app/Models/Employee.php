@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 
 class Employee extends Model
@@ -252,6 +253,28 @@ class Employee extends Model
                 return $this->hasMany(
                     AttendanceDeviceEmployee::class
                 );
+            }
+
+            public function payrollRunItems(): HasMany
+            {
+                return $this->hasMany(PayrollRunItem::class);
+            }
+
+            public function salaryStructures(): HasMany
+            {
+                return $this->hasMany(SalaryStructure::class);
+            }
+
+            public function activeSalaryStructure(): HasOne
+            {
+                return $this->hasOne(SalaryStructure::class)
+                    ->where('status', 'active')
+                    ->latestOfMany('effective_from');
+            }
+
+            public function payrollComponents(): HasMany
+            {
+                return $this->hasMany(EmployeePayrollComponent::class);
             }
 
             

@@ -137,10 +137,30 @@ const navigation = computed(() => {
     },
     
     {
-        name: 'Payroll',
-        href: '/payroll',
-        icon: '💰',
-    },
+    name: 'Payroll',
+    href: '/payroll',
+    icon: '💰',
+},
+{
+    name: 'Payroll Periods',
+    href: '/payroll/periods',
+    icon: '📅',
+},
+{
+    name: 'Payroll Runs',
+    href: '/payroll/runs',
+    icon: '🧮',
+},
+{
+    name: 'Salary Structures',
+    href: '/payroll/salary-structures',
+    icon: '💵',
+},
+{
+    name: 'Payroll Components',
+    href: '/payroll/components',
+    icon: '🧾',
+},
     {
         name: 'Documents',
         href: '/documents',
