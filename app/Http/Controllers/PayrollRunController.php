@@ -239,5 +239,27 @@ class PayrollRunController extends Controller
         'success',
         'Payroll calculation options saved successfully.'
     );
-}
+ }
+
+
+    public function resetToDraft(
+        PayrollRun $payrollRun
+    ): RedirectResponse {
+        $company = $this->companyContext->get();
+
+        abort_unless($company, 400, 'No active company selected.');
+
+        $this->authorizeCompanyAccess();
+
+        $this->payrollRunService->resetToDraft(
+            $payrollRun,
+            $company
+        );
+
+        return redirect()
+            ->route('payroll.runs.show', $payrollRun->id)
+            ->with('success', 'Payroll run successfully reset to draft.');
+    }
+
+ 
 }

@@ -49,6 +49,8 @@ class PayrollRunItem extends Model
     'gross_pay' => 'decimal:2',
     'total_deductions' => 'decimal:2',
     'net_pay' => 'decimal:2',
+    'calculation_notes' => 'array',
+
 ];
 
     public function payrollRun(): BelongsTo

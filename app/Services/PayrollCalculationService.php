@@ -12,6 +12,8 @@ use Illuminate\Validation\ValidationException;
 
 class PayrollCalculationService
 {
+    private const OVERTIME_MULTIPLIER = 1.5;
+
     public function __construct(
         private PayrollAttendanceSummaryService $attendanceSummaryService
     ) {
@@ -43,9 +45,6 @@ class PayrollCalculationService
                 ]);
             }
 
-            /*
-             * Get the payroll period used by this payroll run.
-             */
             $period = PayrollPeriod::query()
                 ->where('company_id', $company->id)
                 ->findOrFail($run->payroll_period_id);
@@ -61,25 +60,60 @@ class PayrollCalculationService
             foreach ($run->items as $item) {
 
                 /*
-                 * ---------------------------------------------------------
-                 * ATTENDANCE & LEAVE SUMMARY
-                 * ---------------------------------------------------------
-                 *
-                 * Build the employee's attendance summary for this
-                 * payroll period and save it onto the payroll item.
-                 */
+                |--------------------------------------------------------------------------
+                | Attendance summary
+                |--------------------------------------------------------------------------
+                */
+
                 $attendanceSummary = $this->attendanceSummaryService->summarize(
                     $item,
                     $period,
                     $company
                 );
 
-                /*
-                 * ---------------------------------------------------------
-                 * PAYROLL COMPONENTS
-                 * ---------------------------------------------------------
-                 */
                 $basicSalary = (float) $item->basic_salary;
+
+                /*
+                |--------------------------------------------------------------------------
+                | Attendance options
+                |--------------------------------------------------------------------------
+                */
+
+                $applyAttendanceRules = (bool) $run->apply_attendance_rules;
+
+                /*
+                |--------------------------------------------------------------------------
+                | Scheduled hours
+                |--------------------------------------------------------------------------
+                |
+                | This comes from the employee's actual work schedule.
+                | No fixed 8-hour assumption.
+                |
+                */
+
+                $scheduledHours = (float) (
+                    $attendanceSummary['scheduled_hours'] ?? 0
+                );
+
+                /*
+                |--------------------------------------------------------------------------
+                | Rates
+                |--------------------------------------------------------------------------
+                */
+
+                $dailyRate = $attendanceSummary['scheduled_days'] > 0
+                    ? $basicSalary / $attendanceSummary['scheduled_days']
+                    : 0;
+
+                $hourlyRate = $scheduledHours > 0
+                    ? $basicSalary / $scheduledHours
+                    : 0;
+
+                /*
+                |--------------------------------------------------------------------------
+                | Normal payroll components
+                |--------------------------------------------------------------------------
+                */
 
                 $totalAllowances = 0;
                 $totalEmployeeDeductions = 0;
@@ -105,60 +139,228 @@ class PayrollCalculationService
                 }
 
                 /*
-                 * ---------------------------------------------------------
-                 * CURRENT PAYROLL TOTALS
-                 * ---------------------------------------------------------
-                 *
-                 * Overtime is intentionally NOT added to gross pay yet.
-                 * We will implement the overtime earning rule separately
-                 * once the overtime rate/source has been confirmed.
-                 */
-                $grossPay = $basicSalary + $totalAllowances;
+                |--------------------------------------------------------------------------
+                | Attendance deductions
+                |--------------------------------------------------------------------------
+                */
 
-                $netPay = $grossPay - $totalEmployeeDeductions;
+                $absenceDeduction = 0;
+                $unpaidLeaveDeduction = 0;
+                $lateDeduction = 0;
+                $earlyDepartureDeduction = 0;
+
+                if ($applyAttendanceRules) {
+
+                    // Unpaid absence
+                    if ($run->deduct_unpaid_absence) {
+                        $absenceDeduction = round(
+                            $dailyRate * (float) $attendanceSummary['absent_days'],
+                            2
+                        );
+                    }
+
+                    // Unpaid leave
+                    if ($run->deduct_unpaid_leave) {
+                        $unpaidLeaveDeduction = round(
+                            $dailyRate * (float) $attendanceSummary['unpaid_leave_days'],
+                            2
+                        );
+                    }
+
+                    // Late time
+                    if ($run->deduct_late_time) {
+                        $lateHours = (float) $attendanceSummary['late_minutes'] / 60;
+
+                        $lateDeduction = round(
+                            $hourlyRate * $lateHours,
+                            2
+                        );
+                    }
+
+                    // Early departure
+                    if ($run->deduct_early_departure) {
+                        $earlyHours = (float) $attendanceSummary['early_departure_minutes'] / 60;
+
+                        $earlyDepartureDeduction = round(
+                            $hourlyRate * $earlyHours,
+                            2
+                        );
+                    }
+                }
+
+                $attendanceDeduction = round(
+                    $absenceDeduction +
+                    $unpaidLeaveDeduction +
+                    $lateDeduction +
+                    $earlyDepartureDeduction,
+                    2
+                );
+
 
                 /*
-                 * ---------------------------------------------------------
-                 * UPDATE PAYROLL RUN ITEM
-                 * ---------------------------------------------------------
-                 */
-                $item->update([
-                    // Attendance summary
-                    'scheduled_days' => $attendanceSummary['scheduled_days'],
-                    'worked_days' => $attendanceSummary['worked_days'],
-                    'paid_leave_days' => $attendanceSummary['paid_leave_days'],
-                    'unpaid_leave_days' => $attendanceSummary['unpaid_leave_days'],
-                    'absent_days' => $attendanceSummary['absent_days'],
-                    'late_minutes' => $attendanceSummary['late_minutes'],
-                    'early_departure_minutes' => $attendanceSummary['early_departure_minutes'],
-                    'overtime_hours' => $attendanceSummary['overtime_hours'],
+                |--------------------------------------------------------------------------
+                | Overtime pay
+                |--------------------------------------------------------------------------
+                */
 
-                    // Payroll amounts
-                    'total_allowances' => round($totalAllowances, 2),
+                $overtimePay = 0;
+
+                if (
+                    $applyAttendanceRules &&
+                    $run->pay_overtime
+                ) {
+                    $overtimePay = round(
+                        $hourlyRate *
+                        (float) $attendanceSummary['overtime_hours'] *
+                        self::OVERTIME_MULTIPLIER,
+                        2
+                    );
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | Final employee payroll
+                |--------------------------------------------------------------------------
+                */
+
+                 $grossPay = round(
+                    $basicSalary + $totalAllowances + $overtimePay,
+                    2
+                );
+
+                $employeeTotalDeductions = round(
+                    $totalEmployeeDeductions + $attendanceDeduction,
+                    2
+                );
+
+                $netPay = round($grossPay - $employeeTotalDeductions, 2);
+
+                    
+                $calculationNotes = [
+                    'basic_salary' => round($basicSalary, 2),
+
+                    'rates' => [
+                        'daily_rate' => round($dailyRate, 2),
+                        'hourly_rate' => round($hourlyRate, 2),
+                    ],
+
+                    'options' => [
+                        'apply_attendance_rules' => $applyAttendanceRules,
+                        'deduct_unpaid_absence' => (bool) $run->deduct_unpaid_absence,
+                        'deduct_unpaid_leave' => (bool) $run->deduct_unpaid_leave,
+                        'deduct_late_time' => (bool) $run->deduct_late_time,
+                        'deduct_early_departure' => (bool) $run->deduct_early_departure,
+                        'pay_overtime' => (bool) $run->pay_overtime,
+                    ],
+
+                    'attendance' => [
+                        'scheduled_days' => (float) $attendanceSummary['scheduled_days'],
+                        'scheduled_hours' => (float) $attendanceSummary['scheduled_hours'],
+                        'worked_days' => (float) $attendanceSummary['worked_days'],
+                        'absent_days' => (float) $attendanceSummary['absent_days'],
+                        'unpaid_leave_days' => (float) $attendanceSummary['unpaid_leave_days'],
+                        'late_minutes' => (int) $attendanceSummary['late_minutes'],
+                        'early_departure_minutes' => (int) $attendanceSummary['early_departure_minutes'],
+                        'overtime_hours' => (float) $attendanceSummary['overtime_hours'],
+                    ],
+
+                    'attendance_deductions' => [
+                        'absence' => $absenceDeduction,
+                        'unpaid_leave' => $unpaidLeaveDeduction,
+                        'late' => $lateDeduction,
+                        'early_departure' => $earlyDepartureDeduction,
+                        'total' => $attendanceDeduction,
+                    ],
+
+                    'overtime_pay' => round($overtimePay, 2),
+                    'component_deductions' => round($totalEmployeeDeductions, 2),
                     'gross_pay' => round($grossPay, 2),
-                    'total_deductions' => round($totalEmployeeDeductions, 2),
+                    'total_deductions' => round($employeeTotalDeductions, 2),
                     'net_pay' => round($netPay, 2),
+                ];
 
-                    'status' => 'calculated',
-                    'calculation_notes' => null,
+
+                /*
+                |--------------------------------------------------------------------------
+                | Save payroll item
+                |--------------------------------------------------------------------------
+                */
+
+                $item->update([
+                    'scheduled_days' =>
+                        $attendanceSummary['scheduled_days'],
+
+                    'worked_days' =>
+                        $attendanceSummary['worked_days'],
+
+                    'paid_leave_days' =>
+                        $attendanceSummary['paid_leave_days'],
+
+                    'unpaid_leave_days' =>
+                        $attendanceSummary['unpaid_leave_days'],
+
+                    'absent_days' =>
+                        $attendanceSummary['absent_days'],
+
+                    'late_minutes' =>
+                        $attendanceSummary['late_minutes'],
+
+                    'early_departure_minutes' =>
+                        $attendanceSummary['early_departure_minutes'],
+
+                    'overtime_hours' =>
+                        $attendanceSummary['overtime_hours'],
+
+                    'total_allowances' =>
+                        round($totalAllowances + $overtimePay, 2),
+
+                    'gross_pay' =>
+                        round($grossPay, 2),
+
+                    'total_deductions' =>
+                        round($employeeTotalDeductions, 2),
+
+                    'net_pay' =>
+                        round($netPay, 2),
+
+                    'status' =>
+                        'calculated',
+
+                   'calculation_notes' => $calculationNotes,
                 ]);
 
+                /*
+                |--------------------------------------------------------------------------
+                | Run totals
+                |--------------------------------------------------------------------------
+                */
+
                 $totalGross += $grossPay;
-                $totalDeductions += $totalEmployeeDeductions;
+                $totalDeductions += $employeeTotalDeductions;
                 $totalNet += $netPay;
             }
 
             /*
-             * -------------------------------------------------------------
-             * UPDATE PAYROLL RUN TOTALS
-             * -------------------------------------------------------------
-             */
+            |--------------------------------------------------------------------------
+            | Update payroll run
+            |--------------------------------------------------------------------------
+            */
+
             $run->update([
-                'status' => 'calculated',
-                'employee_count' => $run->items()->count(),
-                'gross_pay' => round($totalGross, 2),
-                'total_deductions' => round($totalDeductions, 2),
-                'net_pay' => round($totalNet, 2),
+                'status' =>
+                    'calculated',
+
+                'employee_count' =>
+                    $run->items()->count(),
+
+                'gross_pay' =>
+                    round($totalGross, 2),
+
+                'total_deductions' =>
+                    round($totalDeductions, 2),
+
+                'net_pay' =>
+                    round($totalNet, 2),
             ]);
 
             return $run->fresh([
@@ -177,7 +379,8 @@ class PayrollCalculationService
 
         if ($component->calculation_type === 'percentage') {
             return round(
-                $basicSalary * ((float) $component->percentage / 100),
+                $basicSalary *
+                ((float) $component->percentage / 100),
                 2
             );
         }

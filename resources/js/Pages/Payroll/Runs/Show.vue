@@ -60,6 +60,49 @@ interface PayrollRunItemComponent {
     is_taxable: boolean
 }
 
+interface PayrollCalculationNotes {
+    basic_salary: number
+
+    rates: {
+        daily_rate: number
+        hourly_rate: number
+    }
+
+    options: {
+        apply_attendance_rules: boolean
+        deduct_unpaid_absence: boolean
+        deduct_unpaid_leave: boolean
+        deduct_late_time: boolean
+        deduct_early_departure: boolean
+        pay_overtime: boolean
+    }
+
+    attendance: {
+        scheduled_days: number
+        scheduled_hours: number
+        worked_days: number
+        absent_days: number
+        unpaid_leave_days: number
+        late_minutes: number
+        early_departure_minutes: number
+        overtime_hours: number
+    }
+
+    attendance_deductions: {
+        absence: number
+        unpaid_leave: number
+        late: number
+        early_departure: number
+        total: number
+    }
+
+    overtime_pay: number
+    component_deductions: number
+    gross_pay: number
+    total_deductions: number
+    net_pay: number
+}
+
 interface PayrollRunItem {
     id: number
     basic_salary: string | number
@@ -68,6 +111,7 @@ interface PayrollRunItem {
     total_deductions: string | number
     net_pay: string | number
     status: string
+    calculation_notes?: PayrollCalculationNotes | null
 
     employee: {
         id: number
@@ -85,6 +129,18 @@ const props = defineProps<{
     run: PayrollRun
     
 }>()
+
+const expandedBreakdowns = ref<number[]>([])
+
+const toggleBreakdown = (itemId: number) => {
+    if (expandedBreakdowns.value.includes(itemId)) {
+        expandedBreakdowns.value = expandedBreakdowns.value.filter(
+            id => id !== itemId
+        )
+    } else {
+        expandedBreakdowns.value.push(itemId)
+    }
+}
 
 const addEmployees = () => {
     router.post(
@@ -148,6 +204,22 @@ const calculatePayroll = () => {
 
     router.post(
         route('payroll.runs.calculate', props.run.id),
+        {},
+        {
+            preserveScroll: true,
+        }
+    )
+}
+
+const resetPayroll = () => {
+    if (!confirm(
+        'Reset this payroll run to draft? Previous calculated figures will be cleared, but employee and component records will be preserved.'
+    )) {
+        return
+    }
+
+    router.post(
+        route('payroll.runs.reset', props.run.id),
         {},
         {
             preserveScroll: true,
@@ -545,6 +617,15 @@ const statusLabel = (status: string) => {
                     >
                         Calculate Payroll
                     </button>
+
+                    <button
+                        v-if="run.status === 'calculated'"
+                        type="button"
+                        @click="resetPayroll"
+                        class="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700"
+                    >
+                        Reset to Draft
+                    </button>
                 </div>
 
                 <div class="overflow-x-auto">
@@ -572,6 +653,10 @@ const statusLabel = (status: string) => {
                                 <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-slate-500">
                                     Net Pay
                                 </th>
+                               <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-slate-500">
+                                    Breakdown
+                                </th>
+
                                 <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-slate-500">
                                     Actions
                                 </th>
@@ -579,7 +664,8 @@ const statusLabel = (status: string) => {
                         </thead>
 
                         <tbody class="divide-y divide-slate-200">
-                            <tr v-for="item in run.items || []" :key="item.id">
+                            <template v-for="item in run.items || []" :key="item.id">
+                            <tr>
                                 <td class="whitespace-nowrap px-6 py-4">
                                     <p class="font-medium text-slate-900">
                                         {{ item.employee.first_name }}
@@ -649,6 +735,20 @@ const statusLabel = (status: string) => {
                                 <td class="whitespace-nowrap px-6 py-4 text-sm font-semibold text-emerald-700">
                                     {{ formatMoney(item.net_pay) }}
                                 </td>
+                                <td class="whitespace-nowrap px-6 py-4">
+                                    <button
+                                        v-if="item.calculation_notes && run.status !== 'draft'"
+                                        type="button"
+                                        @click="toggleBreakdown(item.id)"
+                                        class="text-sm font-medium text-indigo-600 hover:text-indigo-800"
+                                    >
+                                        {{ expandedBreakdowns.includes(item.id) ? 'Hide Breakdown' : 'View Breakdown' }}
+                                    </button>
+
+                                    <span v-else class="text-sm text-slate-400">
+                                        —
+                                    </span>
+                                </td>
                                 <td class="whitespace-nowrap px-6 py-4 text-sm">
                                     <button
                                         v-if="run.status === 'draft'"
@@ -660,10 +760,228 @@ const statusLabel = (status: string) => {
                                     </button>
                                 </td>
                             </tr>
+                            <!-- Employee Calculation Breakdown -->
+                            <tr
+                                v-if="expandedBreakdowns.includes(item.id) && item.calculation_notes"
+                                class="bg-slate-50"
+                            >
+                                <td colspan="9" class="px-6 py-6">
+                                    <div class="rounded-xl border border-slate-200 bg-white p-5 space-y-6">
 
+                                        <!-- Heading -->
+                                        <div class="flex items-center justify-between">
+                                            <div>
+                                                <h3 class="text-base font-semibold text-slate-900">
+                                                    Payroll Calculation Breakdown
+                                                </h3>
+                                                <p class="text-sm text-slate-500">
+                                                    Detailed salary calculation for
+                                                    {{ item.employee.first_name }}
+                                                    {{ item.employee.last_name }}
+                                                </p>
+                                            </div>
+                                            <span class="rounded-full bg-indigo-100 px-3 py-1 text-xs font-medium text-indigo-700">
+                                                Calculation Details
+                                            </span>
+                                        </div>
+
+                                        <!-- Salary Rates -->
+                                        <div>
+                                            <h4 class="mb-3 text-sm font-semibold text-slate-800">
+                                                Salary Rates
+                                            </h4>
+
+                                            <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                                                <div class="rounded-lg bg-slate-50 p-4">
+                                                    <p class="text-xs text-slate-500">Basic Salary</p>
+                                                    <p class="mt-1 font-semibold text-slate-900">
+                                                        {{ formatMoney(item.calculation_notes.basic_salary) }}
+                                                    </p>
+                                                </div>
+
+                                                <div class="rounded-lg bg-slate-50 p-4">
+                                                    <p class="text-xs text-slate-500">Daily Rate</p>
+                                                    <p class="mt-1 font-semibold text-slate-900">
+                                                        {{ formatMoney(item.calculation_notes.rates.daily_rate) }}
+                                                    </p>
+                                                </div>
+
+                                                <div class="rounded-lg bg-slate-50 p-4">
+                                                    <p class="text-xs text-slate-500">Hourly Rate</p>
+                                                    <p class="mt-1 font-semibold text-slate-900">
+                                                        {{ formatMoney(item.calculation_notes.rates.hourly_rate) }}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Attendance Summary -->
+                                        <div>
+                                            <h4 class="mb-3 text-sm font-semibold text-slate-800">
+                                                Attendance Summary
+                                            </h4>
+
+                                            <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                                                <div>
+                                                    <p class="text-xs text-slate-500">Scheduled Days</p>
+                                                    <p class="font-semibold">
+                                                        {{ item.calculation_notes.attendance.scheduled_days }}
+                                                    </p>
+                                                </div>
+
+                                                <div>
+                                                    <p class="text-xs text-slate-500">Scheduled Hours</p>
+                                                    <p class="font-semibold">
+                                                        {{ item.calculation_notes.attendance.scheduled_hours }}
+                                                    </p>
+                                                </div>
+
+                                                <div>
+                                                    <p class="text-xs text-slate-500">Worked Days</p>
+                                                    <p class="font-semibold">
+                                                        {{ item.calculation_notes.attendance.worked_days }}
+                                                    </p>
+                                                </div>
+
+                                                <div>
+                                                    <p class="text-xs text-slate-500">Absent Days</p>
+                                                    <p class="font-semibold text-red-600">
+                                                        {{ item.calculation_notes.attendance.absent_days }}
+                                                    </p>
+                                                </div>
+
+                                                <div>
+                                                    <p class="text-xs text-slate-500">Unpaid Leave</p>
+                                                    <p class="font-semibold">
+                                                        {{ item.calculation_notes.attendance.unpaid_leave_days }}
+                                                    </p>
+                                                </div>
+
+                                                <div>
+                                                    <p class="text-xs text-slate-500">Late Minutes</p>
+                                                    <p class="font-semibold">
+                                                        {{ item.calculation_notes.attendance.late_minutes }}
+                                                    </p>
+                                                </div>
+
+                                                <div>
+                                                    <p class="text-xs text-slate-500">Early Departure</p>
+                                                    <p class="font-semibold">
+                                                        {{ item.calculation_notes.attendance.early_departure_minutes }} minutes
+                                                    </p>
+                                                </div>
+
+                                                <div>
+                                                    <p class="text-xs text-slate-500">Overtime Hours</p>
+                                                    <p class="font-semibold text-emerald-700">
+                                                        {{ item.calculation_notes.attendance.overtime_hours }}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Attendance Deductions -->
+                                        <div>
+                                            <h4 class="mb-3 text-sm font-semibold text-slate-800">
+                                                Attendance Deductions
+                                            </h4>
+
+                                            <div class="space-y-2">
+                                                <div class="flex justify-between text-sm">
+                                                    <span>Unpaid Absence</span>
+                                                    <span class="font-medium text-red-600">
+                                                        {{ formatMoney(item.calculation_notes.attendance_deductions.absence) }}
+                                                    </span>
+                                                </div>
+
+                                                <div class="flex justify-between text-sm">
+                                                    <span>Unpaid Leave</span>
+                                                    <span class="font-medium text-red-600">
+                                                        {{ formatMoney(item.calculation_notes.attendance_deductions.unpaid_leave) }}
+                                                    </span>
+                                                </div>
+
+                                                <div class="flex justify-between text-sm">
+                                                    <span>Late Time</span>
+                                                    <span class="font-medium text-red-600">
+                                                        {{ formatMoney(item.calculation_notes.attendance_deductions.late) }}
+                                                    </span>
+                                                </div>
+
+                                                <div class="flex justify-between text-sm">
+                                                    <span>Early Departure</span>
+                                                    <span class="font-medium text-red-600">
+                                                        {{ formatMoney(item.calculation_notes.attendance_deductions.early_departure) }}
+                                                    </span>
+                                                </div>
+
+                                                <div class="flex justify-between border-t border-slate-200 pt-3 text-sm font-semibold">
+                                                    <span>Total Attendance Deductions</span>
+                                                    <span class="text-red-600">
+                                                        {{ formatMoney(item.calculation_notes.attendance_deductions.total) }}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Other Payroll Calculations -->
+                                        <div>
+                                            <h4 class="mb-3 text-sm font-semibold text-slate-800">
+                                                Other Payroll Calculations
+                                            </h4>
+
+                                            <div class="space-y-3">
+                                                <div class="flex justify-between text-sm">
+                                                    <span>Overtime Pay</span>
+                                                    <span class="font-medium text-emerald-700">
+                                                        {{ formatMoney(item.calculation_notes.overtime_pay) }}
+                                                    </span>
+                                                </div>
+
+                                                <div class="flex justify-between text-sm">
+                                                    <span>Component Deductions</span>
+                                                    <span class="font-medium text-red-600">
+                                                        {{ formatMoney(item.calculation_notes.component_deductions) }}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Final Calculation -->
+                                        <div class="rounded-lg border border-slate-200 p-4 space-y-3">
+                                            <h4 class="font-semibold text-slate-900">
+                                                Final Payroll Calculation
+                                            </h4>
+
+                                            <div class="flex justify-between text-sm">
+                                                <span>Gross Pay</span>
+                                                <span class="font-semibold">
+                                                    {{ formatMoney(item.calculation_notes.gross_pay) }}
+                                                </span>
+                                            </div>
+
+                                            <div class="flex justify-between text-sm">
+                                                <span>Total Deductions</span>
+                                                <span class="font-semibold text-red-600">
+                                                    {{ formatMoney(item.calculation_notes.total_deductions) }}
+                                                </span>
+                                            </div>
+
+                                            <div class="flex justify-between border-t border-slate-200 pt-3">
+                                                <span class="font-bold text-slate-900">Net Pay</span>
+                                                <span class="text-lg font-bold text-emerald-700">
+                                                    {{ formatMoney(item.calculation_notes.net_pay) }}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                    </div>
+                                </td>
+                            </tr>
+                            </template>
                             <tr v-if="!run.items || run.items.length === 0">
-                                <td colspan="6" class="px-6 py-10 text-center">
-                                    <p class="font-medium text-slate-700">
+                                        <td colspan="9" class="px-6 py-10 text-center">
+                                        <p class="font-medium text-slate-700">
                                         No employees added yet
                                     </p>
                                     <p class="mt-1 text-sm text-slate-500">

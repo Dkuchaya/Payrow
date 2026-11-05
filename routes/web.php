@@ -811,6 +811,12 @@ Route::middleware(['auth'])
         )->name('runs.options.update');
 
 
+        Route::post(
+        '/runs/{payrollRun}/reset',
+        [PayrollRunController::class, 'resetToDraft']
+    )->name('runs.reset');   
+
+
     Route::get('/employees/{employee}/components', [
         EmployeePayrollComponentController::class,
         'index',

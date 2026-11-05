@@ -216,6 +216,73 @@ class PayrollRunService
         });
     }
 
+
+    public function resetToDraft(
+    PayrollRun $payrollRun,
+    Company $company
+): PayrollRun {
+    return DB::transaction(function () use ($payrollRun, $company) {
+
+        $run = PayrollRun::query()
+            ->where('company_id', $company->id)
+            ->lockForUpdate()
+            ->findOrFail($payrollRun->id);
+
+        if ($run->status !== 'calculated') {
+            throw ValidationException::withMessages([
+                'payroll_run' => 'Only calculated payroll runs can be reset to draft.',
+            ]);
+        }
+
+        if (
+            $run->approved_by !== null ||
+            $run->approved_at !== null ||
+            $run->paid_at !== null
+        ) {
+            throw ValidationException::withMessages([
+                'payroll_run' => 'Approved or paid payroll runs cannot be reset.',
+            ]);
+        }
+
+        $run->load('items.components');
+
+        foreach ($run->items as $item) {
+            foreach ($item->components as $component) {
+                $component->update([
+                    'calculated_amount' => 0,
+                ]);
+            }
+
+            $item->update([
+                'scheduled_days' => 0,
+                'worked_days' => 0,
+                'paid_leave_days' => 0,
+                'unpaid_leave_days' => 0,
+                'absent_days' => 0,
+                'late_minutes' => 0,
+                'early_departure_minutes' => 0,
+                'overtime_hours' => 0,
+                'total_allowances' => 0,
+                'gross_pay' => 0,
+                'total_deductions' => 0,
+                'net_pay' => 0,
+                'calculation_notes' => null,
+                'status' => 'pending',
+            ]);
+        }
+
+        $run->update([
+            'status' => 'draft',
+            'employee_count' => $run->items()->count(),
+            'gross_pay' => 0,
+            'total_deductions' => 0,
+            'net_pay' => 0,
+        ]);
+
+        return $run->fresh(['items.components']);
+    });
+}
+
     
 }
 
