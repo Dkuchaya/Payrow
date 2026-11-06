@@ -90,6 +90,12 @@ const navigation = computed(() => {
                 href: '/accounting/history',
                 icon: '📊',
             },
+
+            {
+                name: 'Statutory Management',
+                href: '/statutory-rule-sets',
+                icon: '⚖️',
+            },
         )
     } else {
         items.push({

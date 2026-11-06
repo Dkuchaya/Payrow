@@ -31,6 +31,11 @@ class PayrollRun extends Model
         'deduct_late_time',
         'deduct_early_departure',
         'pay_overtime',
+        'employer_napsa',
+        'employer_nhima',
+        'skills_development_levy',
+        'employer_statutory_contributions',
+        'employer_total_cost',
     ];
 
     protected $casts = [
@@ -46,6 +51,11 @@ class PayrollRun extends Model
         'deduct_late_time' => 'boolean',
         'deduct_early_departure' => 'boolean',
         'pay_overtime' => 'boolean',
+        'employer_napsa' => 'decimal:2',
+        'employer_nhima' => 'decimal:2',
+        'skills_development_levy' => 'decimal:2',
+        'employer_statutory_contributions' => 'decimal:2',
+        'employer_total_cost' => 'decimal:2',
     ];
 
     public function company(): BelongsTo

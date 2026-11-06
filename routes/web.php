@@ -34,6 +34,11 @@ use App\Http\Controllers\PayrollRunController;
 use App\Http\Controllers\SalaryStructureController;
 use App\Http\Controllers\PayrollComponentController;
 use App\Http\Controllers\EmployeePayrollComponentController;
+use App\Http\Controllers\StatutoryRuleSetController;
+use App\Http\Controllers\StatutoryPayeController;
+use App\Http\Controllers\StatutoryNapsaController;
+use App\Http\Controllers\StatutoryNhimaController;
+use App\Http\Controllers\StatutorySdlController;
 use Inertia\Inertia;
 
 
@@ -66,9 +71,57 @@ Route::middleware(['auth', 'super_admin'])->group(function () {
     Route::resource('companies', CompanyController::class)
         ->except(['show', 'destroy']);
 
+    // PAYE Configuration
+    Route::prefix('statutory-rule-sets/{statutoryRuleSet}/paye')
+        ->name('statutory-rule-sets.paye.')
+        ->controller(StatutoryPayeController::class)
+        ->group(function () {
+            Route::get('/', 'index')->name('index');
+
+            Route::put('/rule', 'saveRule')->name('rule.save');
+
+            Route::post('/bands', 'storeBand')->name('bands.store');
+
+            Route::put('/bands/{band}', 'updateBand')->name('bands.update');
+
+            Route::delete('/bands/{band}', 'destroyBand')->name('bands.destroy');
+        });
+
+        Route::post(
+            '/statutory-rule-sets/{statutoryRuleSet}/activate',
+            [StatutoryRuleSetController::class, 'activate']
+        )->name('statutory-rule-sets.activate');
+
+    // NAPSA Configuration
+        Route::prefix('statutory-rule-sets/{statutoryRuleSet}/napsa')
+            ->name('statutory-rule-sets.napsa.')
+            ->controller(StatutoryNapsaController::class)
+            ->group(function () {
+                Route::get('/', 'index')->name('index');
+                Route::put('/save', 'save')->name('save');
+            });
+            
+                // NHIMA Configuration
+            Route::prefix('statutory-rule-sets/{statutoryRuleSet}/nhima')
+                ->name('statutory-rule-sets.nhima.')
+                ->controller(StatutoryNhimaController::class)
+                ->group(function () {
+                    Route::get('/', 'index')->name('index');
+                    Route::put('/save', 'save')->name('save');
+                });
+
+            Route::prefix('statutory-rule-sets/{statutoryRuleSet}/sdl')
+                ->name('statutory-rule-sets.sdl.')
+                ->controller(StatutorySdlController::class)
+                ->group(function () {
+                    Route::get('/', 'index')->name('index');
+                    Route::put('/save', 'save')->name('save');
+                });
+
 });
 
 
+  
 Route::middleware(['auth'])->group(function () {
 
     Route::get('/settings', [SettingsController::class, 'index'])
@@ -391,6 +444,9 @@ Route::prefix('employee-final-settlements')
 Route::middleware(['auth', 'super_admin'])->group(function () {
     Route::get('/subscription-plans', [SubscriptionPlanController::class, 'index'])
         ->name('subscription-plans.index');
+
+    Route::resource('statutory-rule-sets', StatutoryRuleSetController::class)
+    ->except(['destroy']);
 
     Route::get('/subscription-plans/create', [SubscriptionPlanController::class, 'create'])
         ->name('subscription-plans.create');

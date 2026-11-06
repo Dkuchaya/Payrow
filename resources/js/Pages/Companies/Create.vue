@@ -18,8 +18,12 @@ const form = useForm({
     city: '',
     country: 'Zambia',
     currency: 'ZMW',
+    organisation_type: '',
+    annual_turnover: '',
+    is_sdl_exempt: false,
+    sdl_exemption_reason: '',
+    sdl_exemption_reference: '',
     logo: null as File | null,
-
 })
 
 const logoPreview = ref<string | null>(null)
@@ -251,6 +255,113 @@ const submit = () => {
                     />
 
                 </div>
+
+
+                
+            <!-- SDL Eligibility Information -->
+            <section class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+
+                <div class="mb-6">
+                    <h2 class="text-lg font-semibold text-gray-900">
+                        SDL Eligibility Information
+                    </h2>
+
+                    <p class="mt-1 text-sm text-gray-500">
+                        Capture the organisation's statutory eligibility information.
+                    </p>
+                </div>
+
+                <div class="grid gap-5 md:grid-cols-2">
+
+                    <div>
+                        <label class="text-sm font-medium text-gray-700">
+                            Organisation Type
+                        </label>
+
+                        <input
+                            v-model="form.organisation_type"
+                            type="text"
+                            placeholder="e.g. private_company"
+                            class="mt-2 w-full rounded-lg border-gray-300"
+                        />
+                    </div>
+
+                    <div>
+                        <label class="text-sm font-medium text-gray-700">
+                            Annual Turnover (ZMW)
+                        </label>
+
+                        <input
+                            v-model="form.annual_turnover"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="Enter annual turnover"
+                            class="mt-2 w-full rounded-lg border-gray-300"
+                        />
+                    </div>
+
+                </div>
+
+                <div class="mt-6 rounded-lg border border-gray-200 p-5">
+
+                    <div class="flex items-start gap-3">
+                        <input
+                            id="is_sdl_exempt"
+                            v-model="form.is_sdl_exempt"
+                            type="checkbox"
+                            class="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600"
+                        />
+
+                        <div>
+                            <label
+                                for="is_sdl_exempt"
+                                class="font-medium text-gray-900"
+                            >
+                                Mark company as SDL exempt
+                            </label>
+
+                            <p class="mt-1 text-sm text-gray-500">
+                                Enable only when the exemption has been verified.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div
+                        v-if="form.is_sdl_exempt"
+                        class="mt-5 space-y-5 border-t border-gray-100 pt-5"
+                    >
+                        <div>
+                            <label class="text-sm font-medium text-gray-700">
+                                Exemption Reason
+                            </label>
+
+                            <textarea
+                                v-model="form.sdl_exemption_reason"
+                                rows="3"
+                                placeholder="Explain the exemption reason"
+                                class="mt-2 w-full rounded-lg border-gray-300"
+                            />
+                        </div>
+
+                        <div>
+                            <label class="text-sm font-medium text-gray-700">
+                                Exemption Reference
+                            </label>
+
+                            <input
+                                v-model="form.sdl_exemption_reference"
+                                type="text"
+                                placeholder="Approval or exemption reference"
+                                class="mt-2 w-full rounded-lg border-gray-300"
+                            />
+                        </div>
+                    </div>
+
+                </div>
+
+            </section>
+
 
             </div>
 

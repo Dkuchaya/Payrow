@@ -28,10 +28,17 @@ class Company extends Model
         'logo',
         'currency',
         'is_active',
+        'organisation_type',
+        'annual_turnover',
+        'is_sdl_exempt',
+        'sdl_exemption_reason',
+        'sdl_exemption_reference',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'annual_turnover' => 'decimal:2',
+        'is_sdl_exempt' => 'boolean',
     ];
 
     public function users(): BelongsToMany

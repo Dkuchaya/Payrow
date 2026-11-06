@@ -19,14 +19,27 @@ class PayrollRunItemComponent extends Model
         'amount',
         'percentage',
         'calculated_amount',
+
+        // Existing tax configuration
         'is_taxable',
+
+        // Statutory classifications
+        'is_paye_taxable',
+        'is_napsa_pensionable',
+        'is_nhima_liable',
+        'is_sdl_liable',
     ];
 
     protected $casts = [
         'amount' => 'decimal:2',
         'percentage' => 'decimal:2',
         'calculated_amount' => 'decimal:2',
+
         'is_taxable' => 'boolean',
+        'is_paye_taxable' => 'boolean',
+        'is_napsa_pensionable' => 'boolean',
+        'is_nhima_liable' => 'boolean',
+        'is_sdl_liable' => 'boolean',
     ];
 
     public function payrollRunItem(): BelongsTo

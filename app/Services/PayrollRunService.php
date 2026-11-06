@@ -171,8 +171,17 @@ class PayrollRunService
                             'amount' => $assignment->amount,
                             'percentage' => $assignment->percentage,
                             'calculated_amount' => 0,
+
+                            // Existing tax configuration
                             'is_taxable' => $component->is_taxable,
+
+                            // Statutory classifications
+                            'is_paye_taxable' => $component->is_paye_taxable,
+                            'is_napsa_pensionable' => $component->is_napsa_pensionable,
+                            'is_nhima_liable' => $component->is_nhima_liable,
+                            'is_sdl_liable' => $component->is_sdl_liable,
                         ]);
+
                     }
 
                     $addedCount++;
@@ -268,20 +277,44 @@ class PayrollRunService
                 'net_pay' => 0,
                 'calculation_notes' => null,
                 'status' => 'pending',
-            ]);
-        }
 
-        $run->update([
-            'status' => 'draft',
-            'employee_count' => $run->items()->count(),
-            'gross_pay' => 0,
-            'total_deductions' => 0,
-            'net_pay' => 0,
-        ]);
+                // Employee statutory deductions
+                'paye' => 0,
+                'employee_napsa' => 0,
+                'employee_nhima' => 0,
+                'employee_statutory_deductions' => 0,
 
-        return $run->fresh(['items.components']);
-    });
-}
+                // Employer statutory contributions
+                'employer_napsa' => 0,
+                'employer_nhima' => 0,
+                'skills_development_levy' => 0,
+                'employer_statutory_contributions' => 0,
+                'employer_total_cost' => 0,
+
+                // Statutory calculation breakdown
+                'statutory_breakdown' => null,
+                            ]);
+                        }
+
+                        $run->update([
+                            'status' => 'draft',
+                            'employee_count' => $run->items()->count(),
+
+                            'gross_pay' => 0,
+                            'total_deductions' => 0,
+                            'net_pay' => 0,
+
+                            // Employer statutory totals
+                            'employer_napsa' => 0,
+                            'employer_nhima' => 0,
+                            'skills_development_levy' => 0,
+                            'employer_statutory_contributions' => 0,
+                            'employer_total_cost' => 0,
+                        ]);
+
+                        return $run->fresh(['items.components']);
+                    });
+                }
 
     
 }

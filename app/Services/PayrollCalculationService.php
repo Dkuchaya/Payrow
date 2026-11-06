@@ -14,8 +14,9 @@ class PayrollCalculationService
 {
     private const OVERTIME_MULTIPLIER = 1.5;
 
-    public function __construct(
-        private PayrollAttendanceSummaryService $attendanceSummaryService
+   public function __construct(
+        private PayrollAttendanceSummaryService $attendanceSummaryService,
+        private ZambiaStatutoryCalculator $statutoryCalculator
     ) {
     }
 
@@ -56,6 +57,12 @@ class PayrollCalculationService
             $totalGross = 0;
             $totalDeductions = 0;
             $totalNet = 0;
+
+            $totalEmployerNapsa = 0;
+            $totalEmployerNhima = 0;
+            $totalSdl = 0;
+            $totalEmployerStatutory = 0;
+            $totalEmployerCost = 0;
 
             foreach ($run->items as $item) {
 
@@ -228,8 +235,24 @@ class PayrollCalculationService
                     2
                 );
 
+                /*
+                |--------------------------------------------------------------------------
+                | Statutory calculations
+                |--------------------------------------------------------------------------
+                */
+
+                $statutory = $this->statutoryCalculator->calculate(
+                    $item,
+                    $period,
+                    $company,
+                    $grossPay,
+                    $overtimePay
+                );
+
                 $employeeTotalDeductions = round(
-                    $totalEmployeeDeductions + $attendanceDeduction,
+                    $totalEmployeeDeductions
+                    + $attendanceDeduction
+                    + $statutory['employee_statutory_deductions'],
                     2
                 );
 
@@ -275,6 +298,7 @@ class PayrollCalculationService
                     'overtime_pay' => round($overtimePay, 2),
                     'component_deductions' => round($totalEmployeeDeductions, 2),
                     'gross_pay' => round($grossPay, 2),
+                    'statutory' => $statutory['statutory_breakdown'],
                     'total_deductions' => round($employeeTotalDeductions, 2),
                     'net_pay' => round($netPay, 2),
                 ];
@@ -327,6 +351,23 @@ class PayrollCalculationService
                         'calculated',
 
                    'calculation_notes' => $calculationNotes,
+
+                   // Employee statutory deductions
+                    'paye' => $statutory['paye'],
+                    'employee_napsa' => $statutory['employee_napsa'],
+                    'employee_nhima' => $statutory['employee_nhima'],
+                    'employee_statutory_deductions' => $statutory['employee_statutory_deductions'],
+
+                    // Employer statutory contributions
+                    'employer_napsa' => $statutory['employer_napsa'],
+                    'employer_nhima' => $statutory['employer_nhima'],
+                    'skills_development_levy' => $statutory['skills_development_levy'],
+                    'employer_statutory_contributions' => $statutory['employer_statutory_contributions'],
+                    'employer_total_cost' => $statutory['employer_total_cost'],
+
+                    // Statutory audit details
+                    'statutory_breakdown' => $statutory['statutory_breakdown'],
+
                 ]);
 
                 /*
@@ -338,6 +379,12 @@ class PayrollCalculationService
                 $totalGross += $grossPay;
                 $totalDeductions += $employeeTotalDeductions;
                 $totalNet += $netPay;
+
+                $totalEmployerNapsa += $statutory['employer_napsa'];
+                $totalEmployerNhima += $statutory['employer_nhima'];
+                $totalSdl += $statutory['skills_development_levy'];
+                $totalEmployerStatutory += $statutory['employer_statutory_contributions'];
+                $totalEmployerCost += $statutory['employer_total_cost'];
             }
 
             /*
@@ -347,20 +394,26 @@ class PayrollCalculationService
             */
 
             $run->update([
-                'status' =>
-                    'calculated',
+                    'status' =>
+                        'calculated',
 
-                'employee_count' =>
-                    $run->items()->count(),
+                    'employee_count' =>
+                        $run->items()->count(),
 
-                'gross_pay' =>
-                    round($totalGross, 2),
+                    'gross_pay' =>
+                        round($totalGross, 2),
 
-                'total_deductions' =>
-                    round($totalDeductions, 2),
+                    'total_deductions' =>
+                        round($totalDeductions, 2),
 
-                'net_pay' =>
-                    round($totalNet, 2),
+                    'net_pay' =>
+                        round($totalNet, 2),
+
+                    'employer_napsa' => round($totalEmployerNapsa, 2),
+                    'employer_nhima' => round($totalEmployerNhima, 2),
+                    'skills_development_levy' => round($totalSdl, 2),
+                    'employer_statutory_contributions' => round($totalEmployerStatutory, 2),
+                    'employer_total_cost' => round($totalEmployerCost, 2),
             ]);
 
             return $run->fresh([
