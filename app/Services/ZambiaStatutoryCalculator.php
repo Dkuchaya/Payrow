@@ -484,13 +484,31 @@ private function calculatePaye(
             'name' => $rule->name,
             'calculation_method' => $rule->calculation_method,
             'earnings_basis' => $rule->earnings_basis,
+
             'rate' => $rule->rate !== null
                 ? (float) $rule->rate
                 : null,
+
             'maximum_earnings' => $rule->maximum_earnings !== null
                 ? (float) $rule->maximum_earnings
                 : null,
+
             'settings' => $rule->settings,
+
+            'tax_bands' => $rule->taxBands
+                ->sortBy('sort_order')
+                ->values()
+                ->map(fn ($band) => [
+                    'name' => $band->name,
+                    'lower_limit' => (float) $band->lower_limit,
+                    'upper_limit' => $band->upper_limit !== null
+                        ? (float) $band->upper_limit
+                        : null,
+                    'tax_rate' => (float) $band->tax_rate,
+                    'base_tax' => (float) $band->base_tax,
+                    'sort_order' => (int) $band->sort_order,
+                ])
+                ->all(),
         ];
     }
 }

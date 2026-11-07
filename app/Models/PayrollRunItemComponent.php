@@ -42,6 +42,51 @@ class PayrollRunItemComponent extends Model
         'is_sdl_liable' => 'boolean',
     ];
 
+    protected static function booted(): void
+{
+    static::updating(function (PayrollRunItemComponent $component) {
+        $item = $component->payrollRunItem()
+            ->with(['payrollRun.payrollPeriod'])
+            ->firstOrFail();
+
+        $run = $item->payrollRun;
+        $period = $run->payrollPeriod;
+
+        if (
+            in_array($run->status, ['approved', 'paid'], true) ||
+            $run->approved_by !== null ||
+            $run->approved_at !== null ||
+            $run->paid_at !== null ||
+            !in_array($period->status, ['open', 'processing'], true)
+        ) {
+            throw new \RuntimeException(
+                'Payroll component snapshots cannot be modified after payroll finalization.'
+            );
+        }
+    });
+
+    static::deleting(function (PayrollRunItemComponent $component) {
+        $item = $component->payrollRunItem()
+            ->with(['payrollRun.payrollPeriod'])
+            ->firstOrFail();
+
+        $run = $item->payrollRun;
+        $period = $run->payrollPeriod;
+
+        if (
+            $run->status !== 'draft' ||
+            $run->approved_by !== null ||
+            $run->approved_at !== null ||
+            $run->paid_at !== null ||
+            $period->status !== 'open'
+        ) {
+            throw new \RuntimeException(
+                'Payroll component snapshots can only be deleted from draft payroll in an open period.'
+            );
+        }
+    });
+}
+
     public function payrollRunItem(): BelongsTo
     {
         return $this->belongsTo(PayrollRunItem::class);

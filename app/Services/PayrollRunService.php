@@ -83,9 +83,16 @@ class PayrollRunService
                 ]);
             }
 
-            $run->load('payrollPeriod');
+            $period = \App\Models\PayrollPeriod::query()
+                ->where('company_id', $company->id)
+                ->lockForUpdate()
+                ->findOrFail($run->payroll_period_id);
 
-            $period = $run->payrollPeriod;
+            if ($period->status !== 'open') {
+                throw ValidationException::withMessages([
+                    'payroll_period' => 'Employees can only be added while the payroll period is open.',
+                ]);
+            }
 
             $addedCount = 0;
 
@@ -196,7 +203,7 @@ class PayrollRunService
         });
     }
 
-        public function removeEmployee(
+    public function removeEmployee(
         PayrollRun $payrollRun,
         PayrollRunItem $payrollRunItem,
         Company $company
@@ -210,6 +217,18 @@ class PayrollRunService
             if ($run->status !== 'draft') {
                 throw ValidationException::withMessages([
                     'payroll_run' => 'Employees can only be removed from a draft payroll run.',
+                ]);
+            }
+            
+
+            $period = PayrollPeriod::query()
+                ->where('company_id', $company->id)
+                ->lockForUpdate()
+                ->findOrFail($run->payroll_period_id);
+
+            if ($period->status !== 'open') {
+                throw ValidationException::withMessages([
+                    'payroll_period' => 'Employees can only be removed while the payroll period is open.',
                 ]);
             }
 

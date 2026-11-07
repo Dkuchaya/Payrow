@@ -89,6 +89,51 @@ class PayrollRunItem extends Model
         'statutory_breakdown' => 'array',
     ];
 
+    protected static function booted(): void
+{
+    static::updating(function (PayrollRunItem $item) {
+        $run = $item->payrollRun()
+            ->with('payrollPeriod')
+            ->firstOrFail();
+
+        if (
+            in_array($run->status, ['approved', 'paid'], true) ||
+            $run->approved_by !== null ||
+            $run->approved_at !== null ||
+            $run->paid_at !== null ||
+            !in_array($run->payrollPeriod->status, ['open', 'processing'], true)
+        ) {
+            throw new \RuntimeException(
+                'Employee payroll records cannot be modified after payroll finalization.'
+            );
+        }
+    });
+
+    static::deleting(function (PayrollRunItem $item) {
+    $run = $item->payrollRun()
+        ->with('payrollPeriod')
+        ->firstOrFail();
+
+    if (
+        $run->status !== 'draft' ||
+        $run->approved_by !== null ||
+        $run->approved_at !== null ||
+        $run->paid_at !== null ||
+        $run->payrollPeriod->status !== 'open'
+    ) {
+        throw new \RuntimeException(
+            'Employee payroll records can only be deleted from draft payroll in an open period.'
+        );
+    }
+
+    // Explicitly delete component snapshots before deleting the payroll item.
+    $item->components()->get()->each(function ($component) {
+        $component->delete();
+    });
+});
+}
+
+
     public function payrollRun(): BelongsTo
     {
         return $this->belongsTo(PayrollRun::class);

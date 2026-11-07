@@ -58,6 +58,27 @@ class PayrollRun extends Model
         'employer_total_cost' => 'decimal:2',
     ];
 
+   protected static function booted(): void
+{
+    static::deleting(function (PayrollRun $payrollRun) {
+        if (
+            $payrollRun->status !== 'draft' ||
+            $payrollRun->payrollPeriod?->status !== 'open' ||           
+            $payrollRun->approved_by !== null ||
+            $payrollRun->approved_at !== null ||
+            $payrollRun->paid_at !== null
+        ) {
+            throw new \RuntimeException(
+                'Approved or paid payroll runs cannot be deleted.'
+            );
+        }
+
+        // Explicitly delete employee payroll records first.
+        // Their component snapshots are removed by the existing cascade.
+        $payrollRun->items()->delete();
+    });
+}
+
     public function company(): BelongsTo
     {
         return $this->belongsTo(Company::class);

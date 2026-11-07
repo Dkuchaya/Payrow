@@ -194,6 +194,12 @@ public function activate(
             ->lockForUpdate()
             ->firstOrFail();
 
+    // Acquire a country-level lock to serialize activations.
+    StatutoryRuleSet::where('country_code', $ruleSet->country_code)
+        ->orderBy('id')
+        ->lockForUpdate()
+        ->firstOrFail();
+
         if ($ruleSet->status !== StatutoryRuleSet::STATUS_DRAFT) {
             throw ValidationException::withMessages([
                 'activation' => 'Only draft statutory rule sets can be activated.',

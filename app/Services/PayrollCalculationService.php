@@ -34,11 +34,16 @@ class PayrollCalculationService
                 ->lockForUpdate()
                 ->findOrFail($payrollRun->id);
 
-            if (!in_array($run->status, ['draft', 'calculated'], true)) {
-                throw ValidationException::withMessages([
-                    'payroll_run' => 'This payroll run cannot be calculated in its current status.',
-                ]);
-            }
+                if (
+                    !in_array($run->status, ['draft', 'calculated'], true) ||
+                    $run->approved_by !== null ||
+                    $run->approved_at !== null ||
+                    $run->paid_at !== null
+                ) {
+                    throw ValidationException::withMessages([
+                        'payroll_run' => 'This payroll run cannot be calculated because it is not editable or has already been finalized.',
+                    ]);
+                }
 
             if ($run->items->isEmpty()) {
                 throw ValidationException::withMessages([
@@ -47,8 +52,15 @@ class PayrollCalculationService
             }
 
             $period = PayrollPeriod::query()
-                ->where('company_id', $company->id)
-                ->findOrFail($run->payroll_period_id);
+            ->where('company_id', $company->id)
+            ->lockForUpdate()
+            ->findOrFail($run->payroll_period_id);
+
+           if (!in_array($period->status, ['open', 'processing'], true)) {
+            throw ValidationException::withMessages([
+                'payroll_period' => 'Payroll cannot be recalculated because its period has already been processed or finalized.',
+            ]);
+        }
 
             $run->update([
                 'status' => 'processing',
